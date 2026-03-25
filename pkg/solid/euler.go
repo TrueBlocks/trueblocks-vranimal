@@ -402,32 +402,56 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int32, color vec.SFCol
 		return nil
 	}
 
-	// Create vertex for first position
-	s, firstV, _ := Mvfs(positions[0], color)
-	verts := make([]*Vertex, len(positions))
-	verts[0] = firstV
-
-	// Create remaining vertices
-	for i := 1; i < len(positions); i++ {
-		nv, _ := Lmev(firstV.He, positions[i])
-		verts[i] = nv
-	}
-
-	// Build faces from index list
-	var faceIndices []int32
+	// Parse face index lists.
+	var faces [][]int32
+	var cur []int32
 	for _, idx := range indices {
 		if idx == -1 {
-			if len(faceIndices) >= 3 {
-				buildFace(s, verts, faceIndices)
+			if len(cur) >= 3 {
+				faces = append(faces, append([]int32{}, cur...))
 			}
-			faceIndices = faceIndices[:0]
+			cur = cur[:0]
 		} else {
-			faceIndices = append(faceIndices, idx)
+			cur = append(cur, idx)
 		}
 	}
-	// Handle last face if no trailing -1
-	if len(faceIndices) >= 3 {
-		buildFace(s, verts, faceIndices)
+	if len(cur) >= 3 {
+		faces = append(faces, append([]int32{}, cur...))
+	}
+	if len(faces) == 0 {
+		return nil
+	}
+
+	first := faces[0]
+	s, v0, _ := Mvfs(positions[first[0]], color)
+	verts := make([]*Vertex, len(positions))
+	verts[first[0]] = v0
+
+	// Build the first face boundary: create vertices sequentially so
+	// the loop contains exactly one half-edge per vertex.
+	prev := v0
+	for i := 1; i < len(first); i++ {
+		nv, _ := Lmev(prev.He, positions[first[i]])
+		verts[first[i]] = nv
+		prev = nv
+	}
+
+	// Close the first face polygon.
+	if len(first) >= 3 {
+		Lmef(v0.He, prev.He)
+	}
+
+	// Create any remaining vertices not part of the first face.
+	for i, pos := range positions {
+		if verts[i] == nil {
+			nv, _ := Lmev(v0.He, pos)
+			verts[i] = nv
+		}
+	}
+
+	// Build remaining faces.
+	for _, face := range faces[1:] {
+		buildFace(s, verts, face)
 	}
 
 	s.CalcPlaneEquations()
@@ -436,6 +460,7 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int32, color vec.SFCol
 }
 
 func buildFace(s *Solid, verts []*Vertex, indices []int32) {
+	_ = s
 	if len(indices) < 3 {
 		return
 	}
