@@ -1,0 +1,11 @@
+[book]
+title = "VRaniML — Go VRML97 Toolkit"
+authors = ["TrueBlocks, LLC"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+git-repository-url = "https://github.com/TrueBlocks/trueblocks-vranimal"

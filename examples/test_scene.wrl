@@ -1,0 +1,152 @@
+#VRML V2.0 utf8
+
+# Simple test scene with multiple shapes, lights, and a viewpoint
+
+Viewpoint {
+  position 0 3 12
+  orientation 1 0 0 -0.2
+  description "Default View"
+}
+
+Background {
+  skyColor [ 0.1 0.1 0.3 ]
+}
+
+DirectionalLight {
+  direction -0.5 -1 -0.5
+  color 1 1 1
+  intensity 0.8
+}
+
+# Red box
+Transform {
+  translation -3 0.5 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.9 0.1 0.1
+          shininess 0.8
+        }
+      }
+      geometry Box { size 2 1 2 }
+    }
+  ]
+}
+
+# Green sphere
+Transform {
+  translation 0 1 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.1 0.8 0.2
+          specularColor 1 1 1
+          shininess 0.9
+        }
+      }
+      geometry Sphere { radius 1 }
+    }
+  ]
+}
+
+# Blue cylinder
+Transform {
+  translation 3 1 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.1 0.2 0.9
+          transparency 0.3
+        }
+      }
+      geometry Cylinder {
+        radius 0.7
+        height 2
+      }
+    }
+  ]
+}
+
+# Yellow cone
+Transform {
+  translation 0 1 -3
+  rotation 0 1 0 0.785
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.9 0.9 0.1
+        }
+      }
+      geometry Cone {
+        bottomRadius 1
+        height 2
+      }
+    }
+  ]
+}
+
+# Ground plane (IndexedFaceSet)
+Shape {
+  appearance Appearance {
+    material Material {
+      diffuseColor 0.4 0.4 0.4
+    }
+  }
+  geometry IndexedFaceSet {
+    coord Coordinate {
+      point [
+        -6 0 -6,
+         6 0 -6,
+         6 0  6,
+        -6 0  6
+      ]
+    }
+    coordIndex [ 0 1 2 3 -1 ]
+    solid FALSE
+  }
+}
+
+# Nested group
+Group {
+  children [
+    Transform {
+      translation -2 2.5 2
+      scale 0.5 0.5 0.5
+      children [
+        Shape {
+          appearance Appearance {
+            material Material {
+              diffuseColor 1 0.5 0
+              emissiveColor 0.2 0.1 0
+            }
+          }
+          geometry Sphere { radius 0.8 }
+        }
+      ]
+    }
+    Transform {
+      translation 2 2.5 2
+      scale 0.5 0.5 0.5
+      children [
+        Shape {
+          appearance Appearance {
+            material Material {
+              diffuseColor 0.5 0 1
+            }
+          }
+          geometry Box { size 1.5 1.5 1.5 }
+        }
+      ]
+    }
+  ]
+}
+
+PointLight {
+  location 0 5 5
+  color 1 1 0.8
+  intensity 0.5
+}

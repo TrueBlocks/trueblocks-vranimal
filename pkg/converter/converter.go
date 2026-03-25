@@ -1,0 +1,495 @@
+package converter
+
+import (
+	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"math"
+	"os"
+	"path/filepath"
+
+	"github.com/g3n/engine/core"
+	"github.com/g3n/engine/geometry"
+	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/graphic"
+	"github.com/g3n/engine/light"
+	"github.com/g3n/engine/material"
+	"github.com/g3n/engine/math32"
+	"github.com/g3n/engine/texture"
+
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
+)
+
+// Convert walks the VRML scene graph and adds corresponding g3n objects
+// to the given g3n parent node.
+func Convert(vrmlNodes []node.Node, parent *core.Node, baseDir string) {
+	for _, n := range vrmlNodes {
+		convertNode(n, parent, baseDir)
+	}
+}
+
+func convertNode(n node.Node, parent *core.Node, baseDir string) {
+	switch v := n.(type) {
+	case *node.Transform:
+		convertTransform(v, parent, baseDir)
+	case *node.Group:
+		convertGroup(&v.GroupingNode, parent, baseDir)
+	case *node.Shape:
+		convertShape(v, parent, baseDir)
+	case *node.DirectionalLight:
+		convertDirLight(v, parent)
+	case *node.PointLight:
+		convertPointLight(v, parent)
+	case *node.SpotLight:
+		convertSpotLight(v, parent)
+	case *node.Anchor:
+		convertGroup(&v.GroupingNode, parent, baseDir)
+	case *node.Billboard:
+		convertGroup(&v.GroupingNode, parent, baseDir)
+	case *node.Collision:
+		convertGroup(&v.GroupingNode, parent, baseDir)
+	case *node.Switch:
+		convertSwitch(v, parent, baseDir)
+	case *node.LOD:
+		convertLOD(v, parent, baseDir)
+	case *node.Inline:
+		// Inline loads external files; skip for now
+	case *node.Viewpoint:
+		// handled by viewer main
+	case *node.Background:
+		// handled by viewer main
+	default:
+		// skip unsupported nodes
+	}
+}
+
+func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
+	gn := core.NewNode()
+	gn.SetName(t.GetName())
+	gn.SetPosition(t.Translation.X, t.Translation.Y, t.Translation.Z)
+
+	if t.Rotation.W != 0 {
+		axis := math32.Vector3{X: t.Rotation.X, Y: t.Rotation.Y, Z: t.Rotation.Z}
+		axis.Normalize()
+		q := math32.NewQuaternion(0, 0, 0, 1)
+		q.SetFromAxisAngle(&axis, t.Rotation.W)
+		gn.SetQuaternionQuat(q)
+	}
+
+	gn.SetScale(t.Scale.X, t.Scale.Y, t.Scale.Z)
+	parent.Add(gn)
+
+	for _, child := range t.Children {
+		convertNode(child, gn, baseDir)
+	}
+}
+
+func convertGroup(g *node.GroupingNode, parent *core.Node, baseDir string) {
+	gn := core.NewNode()
+	gn.SetName(g.GetName())
+	parent.Add(gn)
+	for _, child := range g.Children {
+		convertNode(child, gn, baseDir)
+	}
+}
+
+func convertShape(s *node.Shape, parent *core.Node, baseDir string) {
+	if s.Geometry == nil {
+		return
+	}
+	mat := buildMaterial(s.Appearance, baseDir)
+	geom := buildGeometry(s.Geometry)
+	if geom == nil {
+		return
+	}
+	mesh := graphic.NewMesh(geom, mat)
+	mesh.SetName(s.GetName())
+	parent.Add(mesh)
+}
+
+func buildMaterial(app *node.Appearance, baseDir string) material.IMaterial {
+	if app == nil || app.Material == nil {
+		return material.NewStandard(&math32.Color{R: 0.8, G: 0.8, B: 0.8})
+	}
+
+	m := app.Material
+	dc := toColor(&m.DiffuseColor)
+	mat := material.NewStandard(dc)
+	mat.SetEmissiveColor(toColor(&m.EmissiveColor))
+	mat.SetSpecularColor(toColor(&m.SpecularColor))
+	mat.SetShininess(m.Shininess * 128.0)
+
+	if m.Transparency > 0 {
+		mat.SetOpacity(1.0 - m.Transparency)
+		mat.SetTransparent(true)
+	}
+
+	if app.Texture != nil {
+		if it, ok := app.Texture.(*node.ImageTexture); ok && len(it.URL) > 0 {
+			tex := loadTexture(it.URL[0], baseDir)
+			if tex != nil {
+				if it.RepeatS {
+					tex.SetWrapS(gls.REPEAT)
+				}
+				if it.RepeatT {
+					tex.SetWrapT(gls.REPEAT)
+				}
+				mat.AddTexture(tex)
+			}
+		}
+	}
+
+	return mat
+}
+
+func loadTexture(url string, baseDir string) *texture.Texture2D {
+	path := url
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, url)
+	}
+
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot load texture %s: %v\n", url, err)
+		return nil
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot decode texture %s: %v\n", url, err)
+		return nil
+	}
+
+	return texture.NewTexture2DFromRGBA(toRGBA(img))
+}
+
+func toRGBA(img image.Image) *image.RGBA {
+	if rgba, ok := img.(*image.RGBA); ok {
+		return rgba
+	}
+	b := img.Bounds()
+	rgba := image.NewRGBA(b)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			rgba.Set(x, y, img.At(x, y))
+		}
+	}
+	return rgba
+}
+
+func buildGeometry(gn node.GeometryNode) *geometry.Geometry {
+	switch v := gn.(type) {
+	case *node.Box:
+		return geometry.NewBox(v.Size.X, v.Size.Y, v.Size.Z)
+	case *node.Sphere:
+		return geometry.NewSphere(float64(v.Radius), int(v.Slices), int(v.Stacks))
+	case *node.Cone:
+		return geometry.NewCone(float64(v.BottomRadius), float64(v.Height), 32, 1, v.Bottom)
+	case *node.Cylinder:
+		return geometry.NewCylinder(float64(v.Radius), float64(v.Height), 32, 1, v.Top, v.Bottom)
+	case *node.IndexedFaceSet:
+		return buildIndexedFaceSet(v)
+	case *node.ElevationGrid:
+		return buildElevationGrid(v)
+	case *node.Extrusion:
+		return buildExtrusion(v)
+	default:
+		return nil
+	}
+}
+
+func buildIndexedFaceSet(ifs *node.IndexedFaceSet) *geometry.Geometry {
+	if ifs.Coord == nil || len(ifs.Coord.Point) == 0 {
+		return nil
+	}
+
+	geom := geometry.NewGeometry()
+
+	points := ifs.Coord.Point
+	indices := ifs.CoordIndex
+
+	// Build positions VBO
+	positions := math32.NewArrayF32(0, len(points)*3)
+	for _, p := range points {
+		positions.Append(p.X, p.Y, p.Z)
+	}
+	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
+
+	// Normals
+	if ifs.Normal != nil && len(ifs.Normal.Vector) > 0 {
+		normals := math32.NewArrayF32(0, len(ifs.Normal.Vector)*3)
+		for _, n := range ifs.Normal.Vector {
+			normals.Append(n.X, n.Y, n.Z)
+		}
+		geom.AddVBO(gls.NewVBO(normals).AddAttrib(gls.VertexNormal))
+	}
+
+	// Colors
+	if ifs.Color != nil && len(ifs.Color.Color) > 0 {
+		colors := math32.NewArrayF32(0, len(ifs.Color.Color)*3)
+		for _, c := range ifs.Color.Color {
+			colors.Append(c.R, c.G, c.B)
+		}
+		geom.AddVBO(gls.NewVBO(colors).AddAttrib(gls.VertexColor))
+	}
+
+	// Texture coords
+	if ifs.TexCoord != nil && len(ifs.TexCoord.Point) > 0 {
+		uvs := math32.NewArrayF32(0, len(ifs.TexCoord.Point)*2)
+		for _, tc := range ifs.TexCoord.Point {
+			uvs.Append(tc.X, tc.Y)
+		}
+		geom.AddVBO(gls.NewVBO(uvs).AddAttrib(gls.VertexTexcoord))
+	}
+
+	// Build triangle indices from VRML face indices (split by -1)
+	triIndices := math32.NewArrayU32(0, 0)
+	var face []uint32
+	for _, idx := range indices {
+		if idx == -1 {
+			for i := 1; i+1 < len(face); i++ {
+				if ifs.Ccw {
+					triIndices.Append(face[0], face[i], face[i+1])
+				} else {
+					triIndices.Append(face[0], face[i+1], face[i])
+				}
+			}
+			face = face[:0]
+		} else {
+			face = append(face, uint32(idx))
+		}
+	}
+	if len(face) >= 3 {
+		for i := 1; i+1 < len(face); i++ {
+			if ifs.Ccw {
+				triIndices.Append(face[0], face[i], face[i+1])
+			} else {
+				triIndices.Append(face[0], face[i+1], face[i])
+			}
+		}
+	}
+	geom.SetIndices(triIndices)
+
+	// Auto-generate normals if not provided
+	if ifs.Normal == nil || len(ifs.Normal.Vector) == 0 {
+		computeNormals(geom, positions, triIndices)
+	}
+
+	return geom
+}
+
+func computeNormals(geom *geometry.Geometry, positions math32.ArrayF32, indices math32.ArrayU32) {
+	nVerts := positions.Len() / 3
+	normals := math32.NewArrayF32(nVerts*3, nVerts*3)
+
+	for i := 0; i+2 < indices.Len(); i += 3 {
+		i0 := indices[i]
+		i1 := indices[i+1]
+		i2 := indices[i+2]
+
+		v0 := math32.Vector3{X: positions[i0*3], Y: positions[i0*3+1], Z: positions[i0*3+2]}
+		v1 := math32.Vector3{X: positions[i1*3], Y: positions[i1*3+1], Z: positions[i1*3+2]}
+		v2 := math32.Vector3{X: positions[i2*3], Y: positions[i2*3+1], Z: positions[i2*3+2]}
+
+		e1 := v1
+		e1.Sub(&v0)
+		e2 := v2
+		e2.Sub(&v0)
+		var n math32.Vector3
+		n.CrossVectors(&e1, &e2)
+
+		for _, idx := range []uint32{i0, i1, i2} {
+			normals[idx*3] += n.X
+			normals[idx*3+1] += n.Y
+			normals[idx*3+2] += n.Z
+		}
+	}
+
+	for i := 0; i < nVerts; i++ {
+		nx := normals[i*3]
+		ny := normals[i*3+1]
+		nz := normals[i*3+2]
+		l := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
+		if l > 0 {
+			normals[i*3] /= l
+			normals[i*3+1] /= l
+			normals[i*3+2] /= l
+		}
+	}
+
+	geom.AddVBO(gls.NewVBO(normals).AddAttrib(gls.VertexNormal))
+}
+
+func buildElevationGrid(eg *node.ElevationGrid) *geometry.Geometry {
+	if eg.XDimension < 2 || eg.ZDimension < 2 || len(eg.Heights) == 0 {
+		return nil
+	}
+
+	geom := geometry.NewGeometry()
+	xDim := int(eg.XDimension)
+	zDim := int(eg.ZDimension)
+
+	positions := math32.NewArrayF32(0, xDim*zDim*3)
+	for z := 0; z < zDim; z++ {
+		for x := 0; x < xDim; x++ {
+			idx := z*xDim + x
+			h := float32(0)
+			if idx < len(eg.Heights) {
+				h = eg.Heights[idx]
+			}
+			positions.Append(float32(x)*eg.XSpacing, h, float32(z)*eg.ZSpacing)
+		}
+	}
+	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
+
+	triIndices := math32.NewArrayU32(0, 0)
+	for z := 0; z < zDim-1; z++ {
+		for x := 0; x < xDim-1; x++ {
+			i0 := uint32(z*xDim + x)
+			i1 := i0 + 1
+			i2 := uint32((z+1)*xDim + x)
+			i3 := i2 + 1
+			triIndices.Append(i0, i2, i1)
+			triIndices.Append(i1, i2, i3)
+		}
+	}
+	geom.SetIndices(triIndices)
+	computeNormals(geom, positions, triIndices)
+
+	return geom
+}
+
+func buildExtrusion(ex *node.Extrusion) *geometry.Geometry {
+	if len(ex.CrossSection) < 3 || len(ex.Spine) < 2 {
+		return nil
+	}
+
+	nSpine := len(ex.Spine)
+	nCross := len(ex.CrossSection)
+
+	geom := geometry.NewGeometry()
+	positions := math32.NewArrayF32(0, nSpine*nCross*3)
+
+	for i, sp := range ex.Spine {
+		scl := vec.SFVec2f{X: 1, Y: 1}
+		if i < len(ex.Scale) {
+			scl = ex.Scale[i]
+		}
+		for _, cs := range ex.CrossSection {
+			positions.Append(
+				sp.X+cs.X*scl.X,
+				sp.Y,
+				sp.Z+cs.Y*scl.Y,
+			)
+		}
+	}
+	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
+
+	triIndices := math32.NewArrayU32(0, 0)
+	for i := 0; i < nSpine-1; i++ {
+		for j := 0; j < nCross-1; j++ {
+			i0 := uint32(i*nCross + j)
+			i1 := i0 + 1
+			i2 := uint32((i+1)*nCross + j)
+			i3 := i2 + 1
+			triIndices.Append(i0, i2, i1)
+			triIndices.Append(i1, i2, i3)
+		}
+	}
+	geom.SetIndices(triIndices)
+	computeNormals(geom, positions, triIndices)
+
+	return geom
+}
+
+func convertDirLight(dl *node.DirectionalLight, parent *core.Node) {
+	if !dl.On {
+		return
+	}
+	l := light.NewDirectional(toColor(&dl.Color), dl.Intensity)
+	l.SetPosition(dl.Direction.X, dl.Direction.Y, dl.Direction.Z)
+	l.SetName(dl.GetName())
+	parent.Add(l)
+}
+
+func convertPointLight(pl *node.PointLight, parent *core.Node) {
+	if !pl.On {
+		return
+	}
+	l := light.NewPoint(toColor(&pl.Color), pl.Intensity)
+	l.SetPosition(pl.Location.X, pl.Location.Y, pl.Location.Z)
+	l.SetLinearDecay(pl.Attenuation.Y)
+	l.SetQuadraticDecay(pl.Attenuation.Z)
+	l.SetName(pl.GetName())
+	parent.Add(l)
+}
+
+func convertSpotLight(sl *node.SpotLight, parent *core.Node) {
+	if !sl.On {
+		return
+	}
+	l := light.NewSpot(toColor(&sl.Color), sl.Intensity)
+	l.SetPosition(sl.Location.X, sl.Location.Y, sl.Location.Z)
+	l.SetCutoffAngle(sl.CutOffAngle * 180.0 / math.Pi)
+	l.SetName(sl.GetName())
+	parent.Add(l)
+}
+
+func convertSwitch(sw *node.Switch, parent *core.Node, baseDir string) {
+	if sw.WhichChoice >= 0 && int(sw.WhichChoice) < len(sw.Choice) {
+		convertNode(sw.Choice[sw.WhichChoice], parent, baseDir)
+	}
+}
+
+func convertLOD(lod *node.LOD, parent *core.Node, baseDir string) {
+	if len(lod.Level) > 0 {
+		convertNode(lod.Level[0], parent, baseDir)
+	}
+}
+
+func toColor(c *vec.SFColor) *math32.Color {
+	return &math32.Color{R: c.R, G: c.G, B: c.B}
+}
+
+// GetViewpoint searches for the first Viewpoint node.
+func GetViewpoint(nodes []node.Node) *node.Viewpoint {
+	for _, n := range nodes {
+		if vp, ok := n.(*node.Viewpoint); ok {
+			return vp
+		}
+		switch v := n.(type) {
+		case *node.Transform:
+			if vp := GetViewpoint(v.Children); vp != nil {
+				return vp
+			}
+		case *node.Group:
+			if vp := GetViewpoint(v.Children); vp != nil {
+				return vp
+			}
+		}
+	}
+	return nil
+}
+
+// GetBackground searches for the first Background node.
+func GetBackground(nodes []node.Node) *node.Background {
+	for _, n := range nodes {
+		if bg, ok := n.(*node.Background); ok {
+			return bg
+		}
+		switch v := n.(type) {
+		case *node.Transform:
+			if bg := GetBackground(v.Children); bg != nil {
+				return bg
+			}
+		case *node.Group:
+			if bg := GetBackground(v.Children); bg != nil {
+				return bg
+			}
+		}
+	}
+	return nil
+}
