@@ -1,0 +1,92 @@
+#VRML V2.0 utf8
+
+# Interpolator Demo
+# Shows Position, Orientation, Color, and Scalar interpolators
+
+NavigationInfo { headlight TRUE type "EXAMINE" }
+Viewpoint { position 0 3 12 description "Interpolator Demo" }
+
+# --- PositionInterpolator: bouncing ball ---
+DEF BallTransform Transform {
+  translation -4 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 1 0.3 0.3 } }
+      geometry Sphere { radius 0.5 }
+    }
+  ]
+}
+DEF BallTimer TimeSensor { cycleInterval 2 loop TRUE }
+DEF BallPath PositionInterpolator {
+  key [ 0, 0.25, 0.5, 0.75, 1.0 ]
+  keyValue [ -4 0.5 0, -4 3 0, -4 0.5 0, -4 3 0, -4 0.5 0 ]
+}
+ROUTE BallTimer.fraction_changed TO BallPath.set_fraction
+ROUTE BallPath.value_changed TO BallTransform.set_translation
+
+# --- OrientationInterpolator: spinning cube ---
+DEF SpinTransform Transform {
+  translation -1 1.5 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.3 1 0.3 } }
+      geometry Box { size 1 1 1 }
+    }
+  ]
+}
+DEF SpinTimer TimeSensor { cycleInterval 4 loop TRUE }
+DEF SpinPath OrientationInterpolator {
+  key [ 0, 0.5, 1.0 ]
+  keyValue [ 0 1 0 0, 0 1 0 3.14159, 0 1 0 6.28318 ]
+}
+ROUTE SpinTimer.fraction_changed TO SpinPath.set_fraction
+ROUTE SpinPath.value_changed TO SpinTransform.set_rotation
+
+# --- ColorInterpolator: pulsing sphere ---
+DEF PulseMat Material { diffuseColor 1 0 0 }
+Transform {
+  translation 2 1.5 0
+  children [
+    Shape {
+      appearance Appearance { material DEF PulseMat Material { diffuseColor 1 0 0 } }
+      geometry Sphere { radius 0.7 }
+    }
+  ]
+}
+DEF ColorTimer TimeSensor { cycleInterval 3 loop TRUE }
+DEF ColorCycle ColorInterpolator {
+  key [ 0, 0.33, 0.66, 1.0 ]
+  keyValue [ 1 0 0, 0 1 0, 0 0 1, 1 0 0 ]
+}
+ROUTE ColorTimer.fraction_changed TO ColorCycle.set_fraction
+ROUTE ColorCycle.value_changed TO PulseMat.set_diffuseColor
+
+# --- ScalarInterpolator: fading cylinder ---
+DEF FadeMat Material { diffuseColor 0.8 0.8 0.2 transparency 0 }
+Transform {
+  translation 5 1 0
+  children [
+    Shape {
+      appearance Appearance { material DEF FadeMat Material { diffuseColor 0.8 0.8 0.2 } }
+      geometry Cylinder { radius 0.5 height 1.5 }
+    }
+  ]
+}
+DEF FadeTimer TimeSensor { cycleInterval 2.5 loop TRUE }
+DEF FadeInterp ScalarInterpolator {
+  key [ 0, 0.5, 1.0 ]
+  keyValue [ 0, 0.8, 0 ]
+}
+ROUTE FadeTimer.fraction_changed TO FadeInterp.set_fraction
+ROUTE FadeInterp.value_changed TO FadeMat.transparency
+
+# --- Floor ---
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.4 0.4 0.4 } }
+      geometry Box { size 18 0.1 8 }
+    }
+  ]
+}

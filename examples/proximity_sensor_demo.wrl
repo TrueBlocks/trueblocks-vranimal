@@ -1,0 +1,71 @@
+#VRML V2.0 utf8
+
+# ProximitySensor Demo
+# Walk inside the green zone to trigger color change and animation
+# The sphere changes from blue to red when you enter the proximity zone
+
+NavigationInfo { headlight TRUE type "EXAMINE" }
+Viewpoint { position 0 3 10 description "ProximitySensor Demo" }
+
+# --- Proximity zone marker (transparent green box) ---
+Transform {
+  translation 0 1 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material { diffuseColor 0 1 0 transparency 0.8 }
+      }
+      geometry Box { size 4 4 4 }
+    }
+  ]
+}
+
+# --- Sphere that reacts to proximity ---
+DEF ReactSphere Transform {
+  translation 0 1 0
+  children [
+    Shape {
+      appearance Appearance {
+        material DEF SphereMat Material { diffuseColor 0.2 0.2 1 }
+      }
+      geometry Sphere { radius 0.8 }
+    }
+  ]
+}
+
+# --- ProximitySensor at center, 4x4x4 box ---
+DEF ProxSensor ProximitySensor {
+  center 0 1 0
+  size 4 4 4
+  enabled TRUE
+}
+
+# When camera enters: change color to red via isActive → ColorInterpolator
+DEF EnterColor ColorInterpolator {
+  key [ 0, 1 ]
+  keyValue [ 0.2 0.2 1, 1 0.2 0.2 ]
+}
+
+# When camera enters: start spinning
+DEF SpinTimer TimeSensor { cycleInterval 2 loop TRUE enabled FALSE }
+DEF SpinPath OrientationInterpolator {
+  key [ 0, 0.5, 1.0 ]
+  keyValue [ 0 1 0 0, 0 1 0 3.14159, 0 1 0 6.28318 ]
+}
+
+ROUTE ProxSensor.isActive TO EnterColor.set_fraction
+ROUTE EnterColor.value_changed TO SphereMat.set_diffuseColor
+ROUTE ProxSensor.isActive TO SpinTimer.set_enabled
+ROUTE SpinTimer.fraction_changed TO SpinPath.set_fraction
+ROUTE SpinPath.value_changed TO ReactSphere.set_rotation
+
+# --- Floor ---
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.4 0.4 0.4 } }
+      geometry Box { size 15 0.1 15 }
+    }
+  ]
+}

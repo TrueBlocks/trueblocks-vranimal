@@ -1,0 +1,113 @@
+#VRML V2.0 utf8
+
+# Lights Demo
+# Shows DirectionalLight, PointLight, and SpotLight effects
+
+NavigationInfo { headlight FALSE type "EXAMINE" }
+Viewpoint { position 0 3 12 description "Lights Overview" }
+Background { skyColor [ 0.05 0.05 0.1 ] }
+
+# Turn off headlight to see light effects clearly
+
+# --- DirectionalLight (sun from above-right) ---
+DirectionalLight {
+  direction -0.5 -1 -0.3
+  color 1 1 0.9
+  intensity 0.6
+}
+
+# --- PointLight (red, on the left) ---
+PointLight {
+  location -3 3 2
+  color 1 0.2 0.2
+  intensity 1.0
+  attenuation 1 0.1 0
+}
+
+# Red marker for point light position
+Transform {
+  translation -3 3 2
+  children [
+    Shape {
+      appearance Appearance { material Material { emissiveColor 1 0.2 0.2 } }
+      geometry Sphere { radius 0.15 }
+    }
+  ]
+}
+
+# --- SpotLight (blue, from above-right) ---
+SpotLight {
+  location 4 4 3
+  direction -0.5 -0.8 -0.3
+  color 0.3 0.3 1
+  intensity 1.0
+  cutOffAngle 0.5
+}
+
+# Blue marker for spot light position
+Transform {
+  translation 4 4 3
+  children [
+    Shape {
+      appearance Appearance { material Material { emissiveColor 0.3 0.3 1 } }
+      geometry Sphere { radius 0.15 }
+    }
+  ]
+}
+
+# --- Scene objects to demonstrate lighting ---
+
+# White sphere (center) - shows all three lights
+Transform {
+  translation 0 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } }
+      geometry Sphere { radius 1 }
+    }
+  ]
+}
+
+# Left cylinder
+Transform {
+  translation -3 0.75 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } }
+      geometry Cylinder { radius 0.5 height 1.5 }
+    }
+  ]
+}
+
+# Right cone
+Transform {
+  translation 3 0 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } }
+      geometry Cone { bottomRadius 0.8 height 1.5 }
+    }
+  ]
+}
+
+# Floor
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.5 0.5 0.5 } }
+      geometry Box { size 15 0.1 10 }
+    }
+  ]
+}
+
+# Back wall
+Transform {
+  translation 0 2.5 -4
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.6 0.6 0.6 } }
+      geometry Box { size 15 5 0.1 }
+    }
+  ]
+}

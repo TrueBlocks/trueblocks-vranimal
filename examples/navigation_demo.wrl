@@ -1,0 +1,69 @@
+#VRML V2.0 utf8
+
+# Navigation Demo
+# Showcases NavigationInfo with EXAMINE mode, custom speed, and no headlight
+# Orbit around the scene to see the effect of the directional lights
+
+NavigationInfo {
+  headlight FALSE
+  speed 2.0
+  type "EXAMINE"
+  visibilityLimit 50
+}
+Viewpoint { position 0 3 10 description "Navigation Demo" }
+
+# Scene is lit by colored directional lights only (no headlight)
+DirectionalLight { direction 1 -1 0 color 1 0.8 0.6 intensity 0.8 }
+DirectionalLight { direction -1 -1 0 color 0.6 0.8 1 intensity 0.5 }
+
+# Some objects to navigate around
+Transform {
+  translation 0 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } }
+      geometry Sphere { radius 1.2 }
+    }
+  ]
+}
+
+Transform {
+  translation -3 0.75 -2
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.8 0.3 0.3 } }
+      geometry Box { size 1.5 1.5 1.5 }
+    }
+  ]
+}
+
+Transform {
+  translation 3 0 -2
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.3 0.8 0.3 } }
+      geometry Cone { bottomRadius 1 height 2 }
+    }
+  ]
+}
+
+Transform {
+  translation 0 0.75 -4
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.3 0.3 0.8 } }
+      geometry Cylinder { radius 0.6 height 1.5 }
+    }
+  ]
+}
+
+# Floor
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.4 0.4 0.4 } }
+      geometry Box { size 15 0.1 15 }
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+#VRML V2.0 utf8
+
+# All Geometry Primitives Demo
+# Shows every supported geometry type in a row
+
+NavigationInfo { headlight TRUE type "EXAMINE" }
+Viewpoint { position 0 2 18 description "Overview" }
+
+# --- Box ---
+Transform {
+  translation -8 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 1 0.2 0.2 } }
+      geometry Box { size 1.5 1.5 1.5 }
+    }
+  ]
+}
+
+# --- Sphere ---
+Transform {
+  translation -5 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.2 1 0.2 } }
+      geometry Sphere { radius 0.8 }
+    }
+  ]
+}
+
+# --- Cylinder ---
+Transform {
+  translation -2 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.2 0.2 1 } }
+      geometry Cylinder { radius 0.6 height 1.5 }
+    }
+  ]
+}
+
+# --- Cone ---
+Transform {
+  translation 1 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 1 1 0 } }
+      geometry Cone { bottomRadius 0.8 height 1.5 }
+    }
+  ]
+}
+
+# --- ElevationGrid ---
+Transform {
+  translation 3 0 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0 0.8 0.8 } }
+      geometry ElevationGrid {
+        xDimension 5
+        zDimension 5
+        xSpacing 0.5
+        zSpacing 0.5
+        height [ 0 0.2 0.5 0.2 0
+                 0.2 0.5 1.0 0.5 0.2
+                 0.5 1.0 1.5 1.0 0.5
+                 0.2 0.5 1.0 0.5 0.2
+                 0 0.2 0.5 0.2 0 ]
+      }
+    }
+  ]
+}
+
+# --- Extrusion ---
+Transform {
+  translation 6 1 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 1 0.5 0 } }
+      geometry Extrusion {
+        crossSection [ 0.5 0, 0.35 0.35, 0 0.5, -0.35 0.35,
+                      -0.5 0, -0.35 -0.35, 0 -0.5, 0.35 -0.35, 0.5 0 ]
+        spine [ 0 0 0, 0 0.5 0, 0 1.0 0, 0 1.5 0 ]
+        scale [ 1 1, 0.8 0.8, 0.5 0.5, 0.2 0.2 ]
+      }
+    }
+  ]
+}
+
+# --- IndexedFaceSet (a pyramid) ---
+Transform {
+  translation 9 0 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.8 0.2 0.8 } }
+      geometry IndexedFaceSet {
+        coord Coordinate {
+          point [ -0.5 0 0.5, 0.5 0 0.5, 0.5 0 -0.5, -0.5 0 -0.5, 0 1.5 0 ]
+        }
+        coordIndex [ 0 1 4 -1, 1 2 4 -1, 2 3 4 -1, 3 0 4 -1, 0 3 2 1 -1 ]
+      }
+    }
+  ]
+}
+
+# --- IndexedLineSet ---
+Transform {
+  translation -8 1 -4
+  children [
+    Shape {
+      geometry IndexedLineSet {
+        coord Coordinate {
+          point [ 0 0 0, 1 0 0, 1 1 0, 0 1 0, 0.5 1.5 0 ]
+        }
+        coordIndex [ 0 1 2 3 0 -1, 3 4 2 -1 ]
+        color Color { color [ 1 0 0, 0 1 0, 0 0 1, 1 1 0, 1 0 1 ] }
+      }
+    }
+  ]
+}
+
+# --- PointSet ---
+Transform {
+  translation -5 1 -4
+  children [
+    Shape {
+      geometry PointSet {
+        coord Coordinate {
+          point [ 0 0 0, 0.5 0.3 0, -0.3 0.7 0, 0.2 1.0 0,
+                 -0.5 0.5 0, 0.8 0.8 0, -0.2 0.2 0, 0.6 0.1 0 ]
+        }
+        color Color {
+          color [ 1 0 0, 0 1 0, 0 0 1, 1 1 0, 1 0 1, 0 1 1, 0.5 0.5 0.5, 1 1 1 ]
+        }
+      }
+    }
+  ]
+}
+
+# --- Floor ---
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.35 0.35 0.35 } }
+      geometry Box { size 25 0.1 15 }
+    }
+  ]
+}
