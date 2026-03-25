@@ -3,6 +3,7 @@ package converter
 import (
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
@@ -191,17 +192,34 @@ func buildMaterial(app *node.Appearance, baseDir string) material.IMaterial {
 	}
 
 	if app.Texture != nil {
-		if it, ok := app.Texture.(*node.ImageTexture); ok && len(it.URL) > 0 {
-			tex := loadTexture(it.URL[0], baseDir)
-			if tex != nil {
-				if it.RepeatS {
-					tex.SetWrapS(gls.REPEAT)
+		var tex *texture.Texture2D
+		switch t := app.Texture.(type) {
+		case *node.ImageTexture:
+			if len(t.URL) > 0 {
+				tex = loadTexture(t.URL[0], baseDir)
+				if tex != nil {
+					setWrap(tex, t.RepeatS, t.RepeatT)
 				}
-				if it.RepeatT {
-					tex.SetWrapT(gls.REPEAT)
-				}
-				mat.AddTexture(tex)
 			}
+		case *node.PixelTexture:
+			tex = pixelTextureToG3n(&t.Image)
+			if tex != nil {
+				setWrap(tex, t.RepeatS, t.RepeatT)
+			}
+		case *node.MovieTexture:
+			// Treat MovieTexture as a static image (first frame from URL).
+			if len(t.URL) > 0 {
+				tex = loadTexture(t.URL[0], baseDir)
+				if tex != nil {
+					setWrap(tex, t.RepeatS, t.RepeatT)
+				}
+			}
+		}
+		if tex != nil {
+			if app.TextureTransform != nil {
+				applyTextureTransform(tex, app.TextureTransform)
+			}
+			mat.AddTexture(tex)
 		}
 	}
 
@@ -242,6 +260,55 @@ func toRGBA(img image.Image) *image.RGBA {
 		}
 	}
 	return rgba
+}
+
+func setWrap(tex *texture.Texture2D, repeatS, repeatT bool) {
+	if repeatS {
+		tex.SetWrapS(gls.REPEAT)
+	} else {
+		tex.SetWrapS(gls.CLAMP_TO_EDGE)
+	}
+	if repeatT {
+		tex.SetWrapT(gls.REPEAT)
+	} else {
+		tex.SetWrapT(gls.CLAMP_TO_EDGE)
+	}
+}
+
+func pixelTextureToG3n(si *vec.SFImage) *texture.Texture2D {
+	w, h, nc := int(si.Width), int(si.Height), int(si.NumComponents)
+	if w == 0 || h == 0 || nc == 0 {
+		return nil
+	}
+	rgba := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			// VRML PixelTexture stores bottom-to-top; RGBA is top-to-bottom.
+			srcY := h - 1 - y
+			off := (srcY*w + x) * nc
+			var r, g, b, a uint8
+			switch nc {
+			case 1:
+				r, g, b, a = si.Pixels[off], si.Pixels[off], si.Pixels[off], 255
+			case 2:
+				r, g, b, a = si.Pixels[off], si.Pixels[off], si.Pixels[off], si.Pixels[off+1]
+			case 3:
+				r, g, b, a = si.Pixels[off], si.Pixels[off+1], si.Pixels[off+2], 255
+			case 4:
+				r, g, b, a = si.Pixels[off], si.Pixels[off+1], si.Pixels[off+2], si.Pixels[off+3]
+			}
+			rgba.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+		}
+	}
+	return texture.NewTexture2DFromRGBA(rgba)
+}
+
+func applyTextureTransform(tex *texture.Texture2D, tt *node.TextureTransform) {
+	// VRML97 TextureTransform: Tc' = -C * S * R * C * T * Tc
+	// g3n supports offset and repeat (scale) but not rotation.
+	// We apply translation as offset and scale as repeat.
+	tex.SetOffset(tt.Translation.X-tt.Center.X*(tt.Scale.X-1), tt.Translation.Y-tt.Center.Y*(tt.Scale.Y-1))
+	tex.SetRepeat(tt.Scale.X, tt.Scale.Y)
 }
 
 func buildGeometry(gn node.GeometryNode) *geometry.Geometry {

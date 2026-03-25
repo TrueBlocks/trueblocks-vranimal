@@ -702,6 +702,12 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parseTexCoordField(v, fieldName)
 	case *node.ImageTexture:
 		p.parseImageTextureField(v, fieldName)
+	case *node.PixelTexture:
+		p.parsePixelTextureField(v, fieldName)
+	case *node.MovieTexture:
+		p.parseMovieTextureField(v, fieldName)
+	case *node.TextureTransform:
+		p.parseTextureTransformField(v, fieldName)
 	case *node.Viewpoint:
 		p.parseViewpointField(v, fieldName)
 	case *node.DirectionalLight:
@@ -1017,6 +1023,84 @@ func (p *Parser) parseImageTextureField(it *node.ImageTexture, field string) {
 	default:
 		p.skipFieldValue()
 	}
+}
+
+func (p *Parser) parsePixelTextureField(pt *node.PixelTexture, field string) {
+	switch field {
+	case "image":
+		pt.Image = p.parseSFImage()
+	case "repeatS":
+		pt.RepeatS = p.parseBool()
+	case "repeatT":
+		pt.RepeatT = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseMovieTextureField(mt *node.MovieTexture, field string) {
+	switch field {
+	case "url":
+		mt.URL = p.parseMFString()
+	case "loop":
+		mt.Loop = p.parseBool()
+	case "speed":
+		mt.Speed = p.parseFloat()
+	case "startTime":
+		mt.StartTime = float64(p.parseFloat())
+	case "stopTime":
+		mt.StopTime = float64(p.parseFloat())
+	case "repeatS":
+		mt.RepeatS = p.parseBool()
+	case "repeatT":
+		mt.RepeatT = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseTextureTransformField(tt *node.TextureTransform, field string) {
+	switch field {
+	case "center":
+		tt.Center = p.parseVec2f()
+	case "rotation":
+		tt.Rotation = p.parseFloat()
+	case "scale":
+		tt.Scale = p.parseVec2f()
+	case "translation":
+		tt.Translation = p.parseVec2f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseSFImage() vec.SFImage {
+	w := p.parseInt32()
+	h := p.parseInt32()
+	nc := p.parseInt32()
+	img := vec.NewImage(w, h, nc)
+	nPixels := int(w) * int(h)
+	for i := 0; i < nPixels; i++ {
+		pixel := p.parseInt32()
+		off := i * int(nc)
+		switch nc {
+		case 1:
+			img.Pixels[off] = uint8(pixel & 0xFF)
+		case 2:
+			img.Pixels[off] = uint8((pixel >> 8) & 0xFF)
+			img.Pixels[off+1] = uint8(pixel & 0xFF)
+		case 3:
+			img.Pixels[off] = uint8((pixel >> 16) & 0xFF)
+			img.Pixels[off+1] = uint8((pixel >> 8) & 0xFF)
+			img.Pixels[off+2] = uint8(pixel & 0xFF)
+		case 4:
+			img.Pixels[off] = uint8((pixel >> 24) & 0xFF)
+			img.Pixels[off+1] = uint8((pixel >> 16) & 0xFF)
+			img.Pixels[off+2] = uint8((pixel >> 8) & 0xFF)
+			img.Pixels[off+3] = uint8(pixel & 0xFF)
+		}
+	}
+	return img
 }
 
 func (p *Parser) parseViewpointField(vp *node.Viewpoint, field string) {

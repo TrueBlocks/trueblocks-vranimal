@@ -1,0 +1,23 @@
+#VRML V2.0 utf8
+# PixelTexture demo: 4x4 checkerboard pattern on a box
+
+Viewpoint { position 0 0 5 }
+DirectionalLight { direction 0 -1 -1 intensity 0.8 }
+
+Shape {
+  appearance Appearance {
+    texture PixelTexture {
+      image 4 4 3
+        0xFF0000 0x00FF00 0xFF0000 0x00FF00
+        0x00FF00 0x0000FF 0x00FF00 0x0000FF
+        0xFF0000 0x00FF00 0xFF0000 0x00FF00
+        0x00FF00 0x0000FF 0x00FF00 0x0000FF
+      repeatS TRUE
+      repeatT TRUE
+    }
+    textureTransform TextureTransform {
+      scale 2.0 2.0
+    }
+  }
+  geometry Box { size 2 2 2 }
+}
