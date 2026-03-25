@@ -125,6 +125,16 @@ func (l *Lexer) scan() Token {
 	case ']':
 		return TokCloseBracket
 	case '.':
+		// Peek: if the next byte is a digit, this is a number like .5
+		next, nerr := l.readByte()
+		if nerr != nil {
+			return TokPeriod
+		}
+		if next >= '0' && next <= '9' {
+			l.unreadByte()
+			return l.scanNumber(ch)
+		}
+		l.unreadByte()
 		return TokPeriod
 	case ',':
 		return TokComma
@@ -318,16 +328,18 @@ func isIdentPart(ch byte) bool {
 
 // Parser reads VRML tokens and constructs a scene graph.
 type Parser struct {
-	lex      *Lexer
-	defTable map[string]node.Node
-	errors   []string
+	lex        *Lexer
+	defTable   map[string]node.Node
+	protoTable map[string]*ProtoDefinition
+	errors     []string
 }
 
 // NewParser creates a parser from an io.Reader.
 func NewParser(r io.Reader) *Parser {
 	return &Parser{
-		lex:      NewLexer(r),
-		defTable: make(map[string]node.Node),
+		lex:        NewLexer(r),
+		defTable:   make(map[string]node.Node),
+		protoTable: make(map[string]*ProtoDefinition),
 	}
 }
 
@@ -429,23 +441,11 @@ func (p *Parser) skipDottedName() {
 }
 
 func (p *Parser) parsePROTO() {
-	p.lex.Next() // consume PROTO
-	// skip the name identifier (e.g. "Rotor")
-	if p.lex.Peek() == TokIdentifier {
-		p.lex.Next()
-	}
-	p.skipBlock() // skip interface declaration [...]
-	p.skipBlock() // skip body {...}
+	p.parsePROTOFull()
 }
 
 func (p *Parser) parseEXTERNPROTO() {
-	p.lex.Next() // consume EXTERNPROTO
-	// skip the name identifier
-	if p.lex.Peek() == TokIdentifier {
-		p.lex.Next()
-	}
-	p.skipBlock() // skip interface declaration [...]
-	p.skipBlock() // skip URL string or [...]
+	p.parseEXTERNPROTOFull()
 }
 
 func (p *Parser) parseNode() node.Node {
@@ -460,6 +460,21 @@ func (p *Parser) parseNode() node.Node {
 
 	n := p.createNode(typeName)
 	if n == nil {
+		// Check if this is a PROTO instance
+		if def, ok := p.protoTable[typeName]; ok {
+			nodes := p.instantiateProto(def)
+			if len(nodes) == 1 {
+				return nodes[0]
+			}
+			if len(nodes) > 1 {
+				g := &node.Group{}
+				g.BboxSize = vec.SFVec3f{X: -1, Y: -1, Z: -1}
+				g.Children = nodes
+				return g
+			}
+			return nil
+		}
+		// Unknown node — skip balanced braces
 		depth := 1
 		for depth > 0 {
 			tok := p.lex.Next()
