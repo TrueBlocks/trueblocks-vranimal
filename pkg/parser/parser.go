@@ -500,6 +500,11 @@ func (p *Parser) parseNode() node.Node {
 
 	p.parseNodeBody(n, typeName)
 
+	// Resolve Inline nodes: fetch external file and populate children
+	if inl, ok := n.(*node.Inline); ok && len(inl.URL) > 0 {
+		p.resolveInline(inl)
+	}
+
 	if p.lex.Next() != TokCloseBrace {
 		p.errorf("expected '}' for node type %s", typeName)
 	}
@@ -682,6 +687,8 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parsePointLightField(v, fieldName)
 	case *node.SpotLight:
 		p.parseSpotLightField(v, fieldName)
+	case *node.Inline:
+		p.parseInlineField(v, fieldName)
 	default:
 		p.skipFieldValue()
 	}
@@ -1021,6 +1028,48 @@ func (p *Parser) parseSpotLightField(sl *node.SpotLight, field string) {
 		sl.Attenuation = p.parseVec3f()
 	default:
 		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseInlineField(inl *node.Inline, field string) {
+	switch field {
+	case "url":
+		inl.URL = p.parseMFString()
+	case "bboxCenter":
+		inl.BboxCenter = p.parseVec3f()
+	case "bboxSize":
+		inl.BboxSize = p.parseVec3f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) resolveInline(inl *node.Inline) {
+	for _, rawURL := range inl.URL {
+		r, err := p.fetchURL(rawURL)
+		if err != nil {
+			continue
+		}
+		sub := NewParser(r)
+		sub.baseDir = p.baseDir
+		sub.urlFetcher = p.urlFetcher
+		sub.defTable = p.defTable
+		sub.protoTable = p.protoTable
+		nodes := sub.Parse()
+		r.Close()
+		for _, e := range sub.errors {
+			p.errors = append(p.errors, e)
+		}
+		for k, v := range sub.defTable {
+			p.defTable[k] = v
+		}
+		for k, v := range sub.protoTable {
+			if _, exists := p.protoTable[k]; !exists {
+				p.protoTable[k] = v
+			}
+		}
+		inl.Children = nodes
+		return
 	}
 }
 
