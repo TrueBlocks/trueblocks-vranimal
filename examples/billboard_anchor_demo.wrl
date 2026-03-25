@@ -1,0 +1,74 @@
+#VRML V2.0 utf8
+
+# Billboard & Anchor Demo
+# - Billboard: The label always faces the camera as you orbit
+# - Anchor: Click the blue sphere to open a URL in your browser
+
+NavigationInfo { headlight TRUE type "EXAMINE" }
+Viewpoint { position 0 2 10 description "Start" }
+
+# --- Billboard: a label that always faces the viewer ---
+Transform {
+  translation -3 2 0
+  children [
+    Billboard {
+      axisOfRotation 0 1 0
+      children [
+        Shape {
+          appearance Appearance {
+            material Material { diffuseColor 1 1 0 emissiveColor 0.3 0.3 0 }
+          }
+          geometry Box { size 2 0.6 0.1 }
+        }
+      ]
+    }
+  ]
+}
+
+# --- Billboard: free rotation (axis 0 0 0) ---
+Transform {
+  translation 3 2 0
+  children [
+    Billboard {
+      axisOfRotation 0 0 0
+      children [
+        Shape {
+          appearance Appearance {
+            material Material { diffuseColor 0 1 0 emissiveColor 0 0.3 0 }
+          }
+          geometry Box { size 1.5 0.6 0.1 }
+        }
+      ]
+    }
+  ]
+}
+
+# --- Anchor: click to open URL ---
+Transform {
+  translation 0 1 0
+  children [
+    Anchor {
+      url "https://trueblocks.io"
+      description "Visit TrueBlocks"
+      children [
+        Shape {
+          appearance Appearance {
+            material Material { diffuseColor 0.2 0.2 1 emissiveColor 0.1 0.1 0.5 }
+          }
+          geometry Sphere { radius 1 }
+        }
+      ]
+    }
+  ]
+}
+
+# --- Floor ---
+Transform {
+  translation 0 -0.05 0
+  children [
+    Shape {
+      appearance Appearance { material Material { diffuseColor 0.4 0.4 0.4 } }
+      geometry Box { size 20 0.1 20 }
+    }
+  ]
+}

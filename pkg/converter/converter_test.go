@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/g3n/engine/core"
+	"github.com/g3n/engine/math32"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
@@ -265,6 +266,39 @@ func TestLODDynamic(t *testing.T) {
 		}
 		if !wrappers[1].Visible() {
 			t.Fatal("level 1 should be visible after switch")
+		}
+	}
+}
+
+func TestConvert_Billboard(t *testing.T) {
+	_, nm := parseAndConvertNM(t, "#VRML V2.0 utf8\nBillboard { axisOfRotation 0 1 0 children [ Shape { geometry Box {} } ] }")
+	if len(nm.Billboards) != 1 {
+		t.Fatalf("expected 1 billboard in NodeMap, got %d", len(nm.Billboards))
+	}
+}
+
+func TestBillboardRotation(t *testing.T) {
+	_, nm := parseAndConvertNM(t, "#VRML V2.0 utf8\nBillboard { axisOfRotation 0 1 0 children [ Shape { geometry Box {} } ] }")
+	// Place camera along +X, billboard should rotate to face it
+	nm.CameraPos = math32.Vector3{X: 10, Y: 0, Z: 0}
+	nm.UpdateDynamic()
+	for _, g3nNode := range nm.Billboards {
+		rot := g3nNode.Rotation()
+		// Y rotation should be approximately π/2 (facing +X)
+		if rot.Y < 1.0 || rot.Y > 2.0 {
+			t.Fatalf("expected Y rotation ~π/2 from +X camera, got %v", rot)
+		}
+	}
+}
+
+func TestConvert_Anchor(t *testing.T) {
+	_, nm := parseAndConvertNM(t, "#VRML V2.0 utf8\nAnchor { url \"http://example.com\" children [ Shape { geometry Sphere {} } ] }")
+	if len(nm.Anchors) != 1 {
+		t.Fatalf("expected 1 anchor in NodeMap, got %d", len(nm.Anchors))
+	}
+	for a := range nm.Anchors {
+		if len(a.URL) == 0 || a.URL[0] != "http://example.com" {
+			t.Fatalf("expected anchor URL 'http://example.com', got %v", a.URL)
 		}
 	}
 }

@@ -30,6 +30,11 @@ type NodeMap struct {
 	Materials  map[*node.Material]*material.Standard
 	LODs       map[*node.LOD][]*core.Node
 	Switches   map[*node.Switch][]*core.Node
+	Billboards map[*node.Billboard]*core.Node
+	Anchors    map[*node.Anchor]*core.Node
+
+	// CameraPos is the current camera world position, set before UpdateDynamic.
+	CameraPos math32.Vector3
 }
 
 // NewNodeMap creates an empty node mapping.
@@ -39,6 +44,8 @@ func NewNodeMap() *NodeMap {
 		Materials:  make(map[*node.Material]*material.Standard),
 		LODs:       make(map[*node.LOD][]*core.Node),
 		Switches:   make(map[*node.Switch][]*core.Node),
+		Billboards: make(map[*node.Billboard]*core.Node),
+		Anchors:    make(map[*node.Anchor]*core.Node),
 	}
 }
 
@@ -67,9 +74,9 @@ func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 	case *node.SpotLight:
 		convertSpotLight(v, parent)
 	case *node.Anchor:
-		convertGroup(&v.GroupingNode, parent, baseDir, nm)
+		convertAnchor(v, parent, baseDir, nm)
 	case *node.Billboard:
-		convertGroup(&v.GroupingNode, parent, baseDir, nm)
+		convertBillboard(v, parent, baseDir, nm)
 	case *node.Collision:
 		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Switch:
@@ -120,6 +127,9 @@ func (nm *NodeMap) UpdateDynamic() {
 		for i, wrapper := range choices {
 			wrapper.SetVisible(int32(i) == vrmlSW.WhichChoice)
 		}
+	}
+	for vrmlBB, g3nNode := range nm.Billboards {
+		updateBillboardRotation(vrmlBB, g3nNode, nm.CameraPos)
 	}
 }
 
@@ -183,6 +193,35 @@ func convertGroup(g *node.GroupingNode, parent *core.Node, baseDir string, nm *N
 	}
 
 	for _, child := range g.Children {
+		convertNode(child, gn, baseDir, nm)
+	}
+}
+
+func convertBillboard(bb *node.Billboard, parent *core.Node, baseDir string, nm *NodeMap) {
+	gn := core.NewNode()
+	gn.SetName(bb.GetName())
+	parent.Add(gn)
+	nm.Billboards[bb] = gn
+
+	if hasSensorChild(bb.Children) {
+		gn.SetUserData(asNodeSlice(bb.Children))
+	}
+
+	for _, child := range bb.Children {
+		convertNode(child, gn, baseDir, nm)
+	}
+}
+
+func convertAnchor(a *node.Anchor, parent *core.Node, baseDir string, nm *NodeMap) {
+	gn := core.NewNode()
+	gn.SetName(a.GetName())
+	parent.Add(gn)
+	nm.Anchors[a] = gn
+
+	// Tag with the Anchor node so the Picker can detect it when walking parents
+	gn.SetUserData(a)
+
+	for _, child := range a.Children {
 		convertNode(child, gn, baseDir, nm)
 	}
 }
@@ -663,6 +702,43 @@ func convertLOD(lod *node.LOD, parent *core.Node, baseDir string, nm *NodeMap) {
 		levels[i] = wrapper
 	}
 	nm.LODs[lod] = levels
+}
+
+// updateBillboardRotation rotates a billboard's g3n node to face the camera.
+// Uses the VRML97 axisOfRotation constraint: if non-zero, rotate only around
+// that axis; if zero (0,0,0), rotate freely to face the viewer.
+func updateBillboardRotation(bb *node.Billboard, g3nNode *core.Node, camPos math32.Vector3) {
+	matWorld := g3nNode.MatrixWorld()
+	var bbPos math32.Vector3
+	bbPos.SetFromMatrixPosition(&matWorld)
+
+	dir := math32.Vector3{
+		X: camPos.X - bbPos.X,
+		Y: camPos.Y - bbPos.Y,
+		Z: camPos.Z - bbPos.Z,
+	}
+
+	axis := bb.AxisOfRotation
+	if axis.X == 0 && axis.Y == 0 && axis.Z == 0 {
+		// Free rotation: face the camera fully
+		dir.Normalize()
+		q := math32.NewQuaternion(0, 0, 0, 1)
+		// LookAt: default forward is -Z in g3n
+		var up math32.Vector3
+		up.Set(0, 1, 0)
+		var rotMat math32.Matrix4
+		rotMat.LookAt(&bbPos, &camPos, &up)
+		q.SetFromRotationMatrix(&rotMat)
+		g3nNode.SetQuaternionQuat(q)
+	} else {
+		// Constrained rotation around axisOfRotation (typically Y axis)
+		angle := float32(math.Atan2(float64(dir.X), float64(dir.Z)))
+		g3nAxis := math32.Vector3{X: axis.X, Y: axis.Y, Z: axis.Z}
+		g3nAxis.Normalize()
+		q := math32.NewQuaternion(0, 0, 0, 1)
+		q.SetFromAxisAngle(&g3nAxis, angle)
+		g3nNode.SetQuaternionQuat(q)
+	}
 }
 
 func toColor(c *vec.SFColor) *math32.Color {

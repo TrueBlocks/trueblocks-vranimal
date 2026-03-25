@@ -31,6 +31,10 @@ type Picker struct {
 
 	// SimTime is the current simulation time, set externally each frame.
 	SimTime float64
+
+	// OnAnchor is called when a click activates an Anchor node.
+	// The callback receives the Anchor's URL list and description.
+	OnAnchor func(urls []string, description string)
 }
 
 // NewPicker creates a picker for the given g3n scene and camera.
@@ -96,7 +100,11 @@ func (p *Picker) HandlePointer(screenX, screenY float32, action PointerAction) b
 	// Find the VRML sensor group attached to the hit mesh
 	hit := intersects[0]
 	children := findSensorGroup(hit.Object)
-	if children == nil {
+
+	// Check for Anchor parent (even if no pointing device sensors)
+	anchor := findAnchorParent(hit.Object)
+
+	if children == nil && anchor == nil {
 		return false
 	}
 
@@ -107,25 +115,32 @@ func (p *Picker) HandlePointer(screenX, screenY float32, action PointerAction) b
 
 	// Find sensors that are siblings of the hit geometry
 	sensors := findSiblingSensors(children)
-	if len(sensors) == 0 {
-		return false
+
+	// If sensors found, they take priority over Anchor
+	if len(sensors) > 0 {
+		consumed := false
+		for _, sensor := range sensors {
+			switch s := sensor.(type) {
+			case *node.TouchSensor:
+				consumed = p.handleTouchSensor(s, action, hitPoint, hitNormal) || consumed
+			case *node.PlaneSensor:
+				consumed = p.handlePlaneSensor(s, action, hitPoint) || consumed
+			case *node.SphereSensor:
+				consumed = p.handleSphereSensor(s, action, hitPoint) || consumed
+			case *node.CylinderSensor:
+				consumed = p.handleCylinderSensor(s, action, hitPoint) || consumed
+			}
+		}
+		return consumed
 	}
 
-	// Dispatch to each sensor
-	consumed := false
-	for _, sensor := range sensors {
-		switch s := sensor.(type) {
-		case *node.TouchSensor:
-			consumed = p.handleTouchSensor(s, action, hitPoint, hitNormal) || consumed
-		case *node.PlaneSensor:
-			consumed = p.handlePlaneSensor(s, action, hitPoint) || consumed
-		case *node.SphereSensor:
-			consumed = p.handleSphereSensor(s, action, hitPoint) || consumed
-		case *node.CylinderSensor:
-			consumed = p.handleCylinderSensor(s, action, hitPoint) || consumed
-		}
+	// No sensors — fire Anchor on mouse up
+	if anchor != nil && action == PointerUp && p.OnAnchor != nil && len(anchor.URL) > 0 {
+		p.OnAnchor(anchor.URL, anchor.Description)
+		return true
 	}
-	return consumed
+
+	return false
 }
 
 // handleTouchSensor processes pointer events for a TouchSensor.
@@ -322,6 +337,23 @@ func findSensorGroup(inode core.INode) []node.Node {
 	for n != nil {
 		if children, ok := n.UserData().([]node.Node); ok {
 			return children
+		}
+		p := n.Parent()
+		if p == nil {
+			break
+		}
+		n = p.GetNode()
+	}
+	return nil
+}
+
+// findAnchorParent walks up the g3n node tree to find an Anchor node
+// stored as UserData by convertAnchor.
+func findAnchorParent(inode core.INode) *node.Anchor {
+	n := inode.GetNode()
+	for n != nil {
+		if a, ok := n.UserData().(*node.Anchor); ok {
+			return a
 		}
 		p := n.Parent()
 		if p == nil {

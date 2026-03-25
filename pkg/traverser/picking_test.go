@@ -3,6 +3,8 @@ package traverser
 import (
 	"testing"
 
+	"github.com/g3n/engine/core"
+
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
@@ -190,5 +192,30 @@ func TestCylinderSensorCapture(t *testing.T) {
 	p.handleRelease()
 	if cs.IsActive {
 		t.Error("expected IsActive=false after release")
+	}
+}
+
+func TestFindAnchorParent(t *testing.T) {
+	anchor := &node.Anchor{URL: []string{"http://example.com"}, Description: "test"}
+	parent := core.NewNode()
+	parent.SetUserData(anchor)
+
+	child := core.NewNode()
+	parent.Add(child)
+
+	result := findAnchorParent(child)
+	if result != anchor {
+		t.Fatal("expected to find Anchor in parent chain")
+	}
+}
+
+func TestFindAnchorParentNone(t *testing.T) {
+	parent := core.NewNode()
+	child := core.NewNode()
+	parent.Add(child)
+
+	result := findAnchorParent(child)
+	if result != nil {
+		t.Fatal("expected nil when no Anchor in parent chain")
 	}
 }

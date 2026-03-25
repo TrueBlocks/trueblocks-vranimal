@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -104,6 +105,12 @@ func main() {
 
 	// Set up mouse picker for sensor interaction
 	picker := traverser.NewPicker(scene, cam)
+	picker.OnAnchor = func(urls []string, description string) {
+		if len(urls) > 0 {
+			fmt.Fprintf(os.Stderr, "Anchor activated: %s\n", urls[0])
+			exec.Command("open", urls[0]).Start()
+		}
+	}
 	if at.HasSensor {
 		// Subscribe to mouse events for sensor picking
 		a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
@@ -188,6 +195,7 @@ func main() {
 
 		// Process VRML events (TimeSensors, routes, interpolators)
 		br.Update(deltaTime)
+		nodeMap.CameraPos = camPos
 		nodeMap.UpdateDynamic()
 
 		a.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
