@@ -302,3 +302,54 @@ func TestConvert_Anchor(t *testing.T) {
 		}
 	}
 }
+
+func TestConvert_Collision(t *testing.T) {
+	root := parseAndConvert(t, "#VRML V2.0 utf8\nCollision { children [ Shape { geometry Box {} } Shape { geometry Sphere {} } ] }")
+	if childCount(root) != 1 {
+		t.Fatalf("expected 1 container, got %d", childCount(root))
+	}
+	// Collision renders children as a group
+	container := root.Children()[0].GetNode()
+	if len(container.Children()) != 2 {
+		t.Fatalf("expected 2 children in Collision group, got %d", len(container.Children()))
+	}
+}
+
+func TestGetNavigationInfo_Defaults(t *testing.T) {
+	p := parser.NewParser(strings.NewReader("#VRML V2.0 utf8\nNavigationInfo {}"))
+	nodes := p.Parse()
+	ni := GetNavigationInfo(nodes)
+	if ni == nil {
+		t.Fatal("expected navigation info")
+	}
+	if !ni.Headlight {
+		t.Fatal("default headlight should be true")
+	}
+	if ni.Speed != 1.0 {
+		t.Fatalf("default speed should be 1.0, got %g", ni.Speed)
+	}
+	if len(ni.Type) == 0 || ni.Type[0] != "WALK" {
+		t.Fatalf("default type should be WALK, got %v", ni.Type)
+	}
+}
+
+func TestGetNavigationInfo_Custom(t *testing.T) {
+	p := parser.NewParser(strings.NewReader("#VRML V2.0 utf8\nNavigationInfo { headlight FALSE speed 5.0 type \"EXAMINE\" visibilityLimit 100 }"))
+	nodes := p.Parse()
+	ni := GetNavigationInfo(nodes)
+	if ni == nil {
+		t.Fatal("expected navigation info")
+	}
+	if ni.Headlight {
+		t.Fatal("headlight should be false")
+	}
+	if ni.Speed != 5.0 {
+		t.Fatalf("speed should be 5.0, got %g", ni.Speed)
+	}
+	if len(ni.Type) == 0 || ni.Type[0] != "EXAMINE" {
+		t.Fatalf("type should be EXAMINE, got %v", ni.Type)
+	}
+	if ni.VisibilityLimit != 100 {
+		t.Fatalf("visibilityLimit should be 100, got %g", ni.VisibilityLimit)
+	}
+}

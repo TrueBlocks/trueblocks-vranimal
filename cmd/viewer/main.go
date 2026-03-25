@@ -101,7 +101,37 @@ func main() {
 	scene.Add(cam)
 
 	// Orbit control for mouse interaction
-	camera.NewOrbitControl(cam)
+	oc := camera.NewOrbitControl(cam)
+
+	// Apply NavigationInfo settings to orbit control
+	nav := converter.GetNavigationInfo(vrmlNodes)
+	if nav != nil {
+		// Speed scales zoom and pan
+		oc.ZoomSpeed = nav.Speed * 0.1
+		oc.KeyPanSpeed = nav.Speed * 35.0
+		oc.KeyZoomSpeed = nav.Speed * 2.0
+
+		// Type controls enabled interactions
+		navType := "WALK"
+		if len(nav.Type) > 0 {
+			navType = nav.Type[0]
+		}
+		switch navType {
+		case "NONE":
+			oc.SetEnabled(camera.OrbitNone)
+		case "EXAMINE":
+			oc.SetEnabled(camera.OrbitAll)
+		case "FLY":
+			oc.SetEnabled(camera.OrbitRot | camera.OrbitZoom | camera.OrbitKeys)
+		default: // "WALK" and others
+			oc.SetEnabled(camera.OrbitAll)
+		}
+
+		// VisibilityLimit → MaxDistance
+		if nav.VisibilityLimit > 0 {
+			oc.MaxDistance = nav.VisibilityLimit
+		}
+	}
 
 	// Set up mouse picker for sensor interaction
 	picker := traverser.NewPicker(scene, cam)
@@ -140,21 +170,21 @@ func main() {
 	}
 
 	// Add default lighting if no lights in the scene
-	nav := converter.GetNavigationInfo(vrmlNodes)
 	headlight := nav == nil || nav.Headlight // default is true per VRML97
 	if !hasLights(vrmlNodes) {
 		ambLight := light.NewAmbient(&math32.Color{R: 0.3, G: 0.3, B: 0.3}, 1.0)
 		scene.Add(ambLight)
 		if headlight {
+			// Headlight follows the camera (child of cam node)
 			dirLight := light.NewDirectional(&math32.Color{R: 1, G: 1, B: 1}, 0.8)
-			dirLight.SetPosition(5, 10, 5)
-			scene.Add(dirLight)
+			dirLight.SetPosition(0, 0, 1)
+			cam.Add(dirLight)
 		}
 	} else if headlight {
 		// Scene has lights but headlight is also requested
 		dirLight := light.NewDirectional(&math32.Color{R: 1, G: 1, B: 1}, 0.5)
-		dirLight.SetPosition(0, 0, 10)
-		scene.Add(dirLight)
+		dirLight.SetPosition(0, 0, 1)
+		cam.Add(dirLight)
 	}
 
 	// Axes helper
