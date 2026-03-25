@@ -21,6 +21,8 @@ import (
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/traverser"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
 func main() {
@@ -72,9 +74,17 @@ func main() {
 	br.Routes = p.GetRoutes()
 	br.CollectTimeSensors()
 
+	// Set up action traverser for sensors, LOD, etc.
+	at := traverser.NewActionTraverser()
+	at.CollectSensors(vrmlNodes)
+
 	if len(br.TimeSensors) > 0 || len(br.Routes) > 0 {
 		fmt.Fprintf(os.Stderr, "Event engine: %d TimeSensors, %d routes\n",
 			len(br.TimeSensors), len(br.Routes))
+	}
+	if len(at.ProximitySensors) > 0 || len(at.TouchSensors) > 0 || len(at.LODs) > 0 {
+		fmt.Fprintf(os.Stderr, "Action traverser: %d ProximitySensors, %d TouchSensors, %d LODs\n",
+			len(at.ProximitySensors), len(at.TouchSensors), len(at.LODs))
 	}
 
 	// Set up camera from VRML Viewpoint if available
@@ -136,6 +146,13 @@ func main() {
 
 	// Render loop
 	a.Run(func(rend *renderer.Renderer, deltaTime time.Duration) {
+		// Get camera position for action traverser
+		camPos := cam.Position()
+		viewerPos := vec.SFVec3f{X: camPos.X, Y: camPos.Y, Z: camPos.Z}
+
+		// Process action traverser (ProximitySensors, LOD distance, etc.)
+		at.Update(viewerPos, br.SimTime())
+
 		// Process VRML events (TimeSensors, routes, interpolators)
 		br.Update(deltaTime)
 		nodeMap.UpdateDynamic()

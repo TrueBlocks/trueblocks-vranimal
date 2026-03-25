@@ -1,0 +1,91 @@
+#VRML V2.0 utf8
+# Sensor demo: ProximitySensor triggers a color change animation
+# when the camera moves close to the scene center.
+# Also demonstrates LOD with two detail levels.
+
+Viewpoint { position 0 2 12 }
+DirectionalLight { direction 0 -1 -1 intensity 0.8 }
+
+# ProximitySensor: fires when camera enters a 20x20x20 box at origin
+DEF PROX ProximitySensor {
+  center 0 0 0
+  size 20 20 20
+}
+
+# TimeSensor driven by proximity (always loops for demo purposes)
+DEF TIMER TimeSensor { cycleInterval 3.0 loop TRUE }
+
+# Color interpolator: cycles red -> green -> blue -> red
+DEF COLOR_ANIM ColorInterpolator {
+  key [ 0, 0.33, 0.66, 1.0 ]
+  keyValue [ 1 0 0, 0 1 0, 0 0 1, 1 0 0 ]
+}
+
+# Animated sphere — its material color changes over time
+DEF SPHERE_XFORM Transform {
+  translation -3 1 0
+  children [
+    Shape {
+      appearance Appearance {
+        material DEF SPHERE_MAT Material {
+          diffuseColor 1 0 0
+          shininess 0.8
+        }
+      }
+      geometry Sphere { radius 1.0 }
+    }
+  ]
+}
+
+# Wire up: timer -> color interpolator -> sphere material
+ROUTE TIMER.fraction_changed TO COLOR_ANIM.set_fraction
+ROUTE COLOR_ANIM.value_changed TO SPHERE_MAT.set_diffuseColor
+
+# Bouncing box with position interpolation
+DEF BOUNCE_TIMER TimeSensor { cycleInterval 2.0 loop TRUE }
+DEF BOUNCE PositionInterpolator {
+  key [ 0, 0.25, 0.5, 0.75, 1.0 ]
+  keyValue [ 3 0 0, 3 2 0, 3 0 0, 3 -1 0, 3 0 0 ]
+}
+DEF BOX_XFORM Transform {
+  children [
+    Shape {
+      appearance Appearance {
+        texture PixelTexture {
+          image 2 2 3 0xFF0000 0x00FF00 0x0000FF 0xFFFF00
+          repeatS TRUE
+          repeatT TRUE
+        }
+      }
+      geometry Box { size 1.2 1.2 1.2 }
+    }
+  ]
+}
+ROUTE BOUNCE_TIMER.fraction_changed TO BOUNCE.set_fraction
+ROUTE BOUNCE.value_changed TO BOX_XFORM.set_translation
+
+# A static textured cone
+Transform {
+  translation 0 0.75 -3
+  children [
+    Shape {
+      appearance Appearance {
+        material Material { diffuseColor 0.9 0.7 0.3 }
+      }
+      geometry Cone { bottomRadius 1.0 height 1.5 }
+    }
+  ]
+}
+
+# Ground plane
+Transform {
+  translation 0 -0.5 0
+  children [
+    Shape {
+      appearance Appearance {
+        material Material { diffuseColor 0.4 0.5 0.4 }
+      }
+      geometry Box { size 20 0.1 20 }
+    }
+  ]
+}

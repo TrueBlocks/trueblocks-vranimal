@@ -224,6 +224,11 @@ func (b *Browser) Update(dt time.Duration) {
 	b.processRoutes()
 }
 
+// SimTime returns the current simulation time in seconds.
+func (b *Browser) SimTime() float64 {
+	return b.simTime
+}
+
 // Tick advances the simulation by one frame (rate-limited).
 func (b *Browser) Tick() {
 	now := time.Now()
@@ -333,8 +338,13 @@ func getField(n node.Node, field string) any {
 			return ts.Fraction
 		}
 	case node.IsActiveStr: // "isActive"
-		if ts, ok := n.(*node.TimeSensor); ok {
-			return ts.IsActive
+		switch v := n.(type) {
+		case *node.TimeSensor:
+			return v.IsActive
+		case *node.ProximitySensor:
+			return v.IsActive
+		case *node.TouchSensor:
+			return v.IsActive
 		}
 	case node.ValueChangedStr:
 		return getInterpolatorValue(n)
@@ -345,6 +355,38 @@ func getField(n node.Node, field string) any {
 	case node.TimeStr:
 		if ts, ok := n.(*node.TimeSensor); ok {
 			return ts.Time
+		}
+	case node.EnterTimeStr:
+		if ps, ok := n.(*node.ProximitySensor); ok {
+			return ps.EnterTime
+		}
+	case node.ExitTimeStr:
+		if ps, ok := n.(*node.ProximitySensor); ok {
+			return ps.ExitTime
+		}
+	case node.PositionChangedStr:
+		if ps, ok := n.(*node.ProximitySensor); ok {
+			return ps.Position
+		}
+	case node.OrientationChangedStr:
+		if ps, ok := n.(*node.ProximitySensor); ok {
+			return ps.Orientation
+		}
+	case node.IsOverStr:
+		if ts, ok := n.(*node.TouchSensor); ok {
+			return ts.IsOver
+		}
+	case node.TouchTimeStr:
+		if ts, ok := n.(*node.TouchSensor); ok {
+			return ts.TouchTime
+		}
+	case node.HitPointStr:
+		if ts, ok := n.(*node.TouchSensor); ok {
+			return ts.HitPoint
+		}
+	case node.HitNormalStr:
+		if ts, ok := n.(*node.TouchSensor); ok {
+			return ts.HitNormal
 		}
 	}
 	return nil
