@@ -526,6 +526,12 @@ func setField(n node.Node, field string, val any) {
 				s.Enabled = b
 			}
 		}
+	case node.WhichChoiceStr:
+		if sw, ok := n.(*node.Switch); ok {
+			if v, ok := toInt32(val); ok {
+				sw.WhichChoice = v
+			}
+		}
 	}
 }
 
@@ -579,6 +585,18 @@ func toFloat64(val any) (float64, bool) {
 			return 1.0, true
 		}
 		return 0.0, true
+	}
+	return 0, false
+}
+
+func toInt32(val any) (int32, bool) {
+	switch v := val.(type) {
+	case int32:
+		return v, true
+	case float32:
+		return int32(v), true
+	case float64:
+		return int32(v), true
 	}
 	return 0, false
 }

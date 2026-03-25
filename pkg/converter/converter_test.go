@@ -102,14 +102,37 @@ func TestConvert_InlineChildren(t *testing.T) {
 func TestConvert_Switch(t *testing.T) {
 	root := parseAndConvert(t, "#VRML V2.0 utf8\nSwitch { whichChoice 1 choice [ Shape { geometry Box {} } Shape { geometry Sphere {} } ] }")
 	if childCount(root) != 1 {
-		t.Fatalf("expected 1 active choice, got %d", childCount(root))
+		t.Fatalf("expected 1 container, got %d", childCount(root))
+	}
+	container := root.Children()[0].GetNode()
+	// All choices rendered as wrapper nodes
+	if len(container.Children()) != 2 {
+		t.Fatalf("expected 2 wrapper children, got %d", len(container.Children()))
+	}
+	// whichChoice=1 → wrapper[0] hidden, wrapper[1] visible
+	if container.Children()[0].GetNode().Visible() {
+		t.Fatal("wrapper 0 should be hidden")
+	}
+	if !container.Children()[1].GetNode().Visible() {
+		t.Fatal("wrapper 1 should be visible")
 	}
 }
 
 func TestConvert_LOD(t *testing.T) {
 	root := parseAndConvert(t, "#VRML V2.0 utf8\nLOD { level [ Shape { geometry Box {} } Shape { geometry Sphere {} } ] }")
 	if childCount(root) != 1 {
-		t.Fatalf("expected 1 LOD level, got %d", childCount(root))
+		t.Fatalf("expected 1 container, got %d", childCount(root))
+	}
+	container := root.Children()[0].GetNode()
+	if len(container.Children()) != 2 {
+		t.Fatalf("expected 2 wrapper children, got %d", len(container.Children()))
+	}
+	// Default active level 0 → wrapper[0] visible, wrapper[1] hidden
+	if !container.Children()[0].GetNode().Visible() {
+		t.Fatal("wrapper 0 should be visible")
+	}
+	if container.Children()[1].GetNode().Visible() {
+		t.Fatal("wrapper 1 should be hidden")
 	}
 }
 
@@ -168,5 +191,80 @@ func TestGetFog(t *testing.T) {
 	}
 	if fg.VisibilityRange != 100 {
 		t.Fatalf("wrong visibility range: %g", fg.VisibilityRange)
+	}
+}
+
+func parseAndConvertNM(t *testing.T, vrml string) (*core.Node, *NodeMap) {
+	t.Helper()
+	p := parser.NewParser(strings.NewReader(vrml))
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		for _, e := range errs {
+			t.Logf("parse warning: %s", e)
+		}
+	}
+	if len(nodes) == 0 {
+		t.Fatal("no nodes parsed")
+	}
+	root := core.NewNode()
+	nm := Convert(nodes, root, "")
+	return root, nm
+}
+
+func TestSwitchDynamic(t *testing.T) {
+	_, nm := parseAndConvertNM(t, "#VRML V2.0 utf8\nSwitch { whichChoice 0 choice [ Shape { geometry Box {} } Shape { geometry Sphere {} } Shape { geometry Cone {} } ] }")
+	if len(nm.Switches) != 1 {
+		t.Fatalf("expected 1 switch in NodeMap, got %d", len(nm.Switches))
+	}
+	for sw, wrappers := range nm.Switches {
+		// Initially whichChoice=0
+		if !wrappers[0].Visible() {
+			t.Fatal("choice 0 should be visible initially")
+		}
+		if wrappers[1].Visible() || wrappers[2].Visible() {
+			t.Fatal("choices 1,2 should be hidden initially")
+		}
+		// Change to choice 2
+		sw.WhichChoice = 2
+		nm.UpdateDynamic()
+		if wrappers[0].Visible() || wrappers[1].Visible() {
+			t.Fatal("choices 0,1 should be hidden after switch to 2")
+		}
+		if !wrappers[2].Visible() {
+			t.Fatal("choice 2 should be visible after switch")
+		}
+		// -1 means none visible
+		sw.WhichChoice = -1
+		nm.UpdateDynamic()
+		for i, w := range wrappers {
+			if w.Visible() {
+				t.Fatalf("choice %d should be hidden when whichChoice=-1", i)
+			}
+		}
+	}
+}
+
+func TestLODDynamic(t *testing.T) {
+	_, nm := parseAndConvertNM(t, "#VRML V2.0 utf8\nLOD { range [ 50 ] level [ Shape { geometry Box {} } Shape { geometry Sphere {} } ] }")
+	if len(nm.LODs) != 1 {
+		t.Fatalf("expected 1 LOD in NodeMap, got %d", len(nm.LODs))
+	}
+	for lod, wrappers := range nm.LODs {
+		// Initially active=0 (default)
+		if !wrappers[0].Visible() {
+			t.Fatal("level 0 should be visible initially")
+		}
+		if wrappers[1].Visible() {
+			t.Fatal("level 1 should be hidden initially")
+		}
+		// Switch to level 1
+		lod.ActiveLevel = 1
+		nm.UpdateDynamic()
+		if wrappers[0].Visible() {
+			t.Fatal("level 0 should be hidden after switch")
+		}
+		if !wrappers[1].Visible() {
+			t.Fatal("level 1 should be visible after switch")
+		}
 	}
 }

@@ -207,6 +207,7 @@ func (p *Picker) handlePlaneSensor(ps *node.PlaneSensor, action PointerAction, h
 
 // dragPlaneSensor updates translation during drag.
 func (p *Picker) dragPlaneSensor(ps *node.PlaneSensor, nx, ny float32) {
+	_, _ = nx, ny
 	// Project current mouse pos onto the XY plane at the original hit depth
 	ray := p.raycaster.Ray
 	origin := ray.Origin()

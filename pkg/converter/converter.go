@@ -28,6 +28,8 @@ import (
 type NodeMap struct {
 	Transforms map[*node.Transform]*core.Node
 	Materials  map[*node.Material]*material.Standard
+	LODs       map[*node.LOD][]*core.Node
+	Switches   map[*node.Switch][]*core.Node
 }
 
 // NewNodeMap creates an empty node mapping.
@@ -35,6 +37,8 @@ func NewNodeMap() *NodeMap {
 	return &NodeMap{
 		Transforms: make(map[*node.Transform]*core.Node),
 		Materials:  make(map[*node.Material]*material.Standard),
+		LODs:       make(map[*node.LOD][]*core.Node),
+		Switches:   make(map[*node.Switch][]*core.Node),
 	}
 }
 
@@ -101,6 +105,20 @@ func (nm *NodeMap) UpdateDynamic() {
 		g3nMat.SetEmissiveColor(toColor(&vrmlM.EmissiveColor))
 		if vrmlM.Transparency > 0 {
 			g3nMat.SetOpacity(1.0 - vrmlM.Transparency)
+		}
+	}
+	for vrmlLOD, levels := range nm.LODs {
+		active := vrmlLOD.ActiveLevel
+		if active < 0 {
+			active = 0
+		}
+		for i, wrapper := range levels {
+			wrapper.SetVisible(int32(i) == active)
+		}
+	}
+	for vrmlSW, choices := range nm.Switches {
+		for i, wrapper := range choices {
+			wrapper.SetVisible(int32(i) == vrmlSW.WhichChoice)
 		}
 	}
 }
@@ -606,15 +624,45 @@ func convertSpotLight(sl *node.SpotLight, parent *core.Node) {
 }
 
 func convertSwitch(sw *node.Switch, parent *core.Node, baseDir string, nm *NodeMap) {
-	if sw.WhichChoice >= 0 && int(sw.WhichChoice) < len(sw.Choice) {
-		convertNode(sw.Choice[sw.WhichChoice], parent, baseDir, nm)
+	if len(sw.Choice) == 0 {
+		return
 	}
+	container := core.NewNode()
+	container.SetName(sw.GetName())
+	parent.Add(container)
+
+	levels := make([]*core.Node, len(sw.Choice))
+	for i, child := range sw.Choice {
+		wrapper := core.NewNode()
+		wrapper.SetVisible(i == int(sw.WhichChoice))
+		container.Add(wrapper)
+		convertNode(child, wrapper, baseDir, nm)
+		levels[i] = wrapper
+	}
+	nm.Switches[sw] = levels
 }
 
 func convertLOD(lod *node.LOD, parent *core.Node, baseDir string, nm *NodeMap) {
-	if len(lod.Level) > 0 {
-		convertNode(lod.Level[0], parent, baseDir, nm)
+	if len(lod.Level) == 0 {
+		return
 	}
+	container := core.NewNode()
+	container.SetName(lod.GetName())
+	parent.Add(container)
+
+	active := lod.ActiveLevel
+	if active < 0 {
+		active = 0
+	}
+	levels := make([]*core.Node, len(lod.Level))
+	for i, child := range lod.Level {
+		wrapper := core.NewNode()
+		wrapper.SetVisible(int32(i) == active)
+		container.Add(wrapper)
+		convertNode(child, wrapper, baseDir, nm)
+		levels[i] = wrapper
+	}
+	nm.LODs[lod] = levels
 }
 
 func toColor(c *vec.SFColor) *math32.Color {
