@@ -55,7 +55,7 @@ func convertNode(n node.Node, parent *core.Node, baseDir string) {
 	case *node.LOD:
 		convertLOD(v, parent, baseDir)
 	case *node.Inline:
-		// Inline loads external files; skip for now
+		convertGroup(&v.GroupingNode, parent, baseDir)
 	case *node.Viewpoint:
 		// handled by viewer main
 	case *node.Background:
@@ -68,7 +68,19 @@ func convertNode(n node.Node, parent *core.Node, baseDir string) {
 func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
 	gn := core.NewNode()
 	gn.SetName(t.GetName())
-	gn.SetPosition(t.Translation.X, t.Translation.Y, t.Translation.Z)
+
+	hasCenter := t.Center.X != 0 || t.Center.Y != 0 || t.Center.Z != 0
+
+	if hasCenter {
+		// VRML transform: T * C * R * S * C^-1
+		gn.SetPosition(
+			t.Translation.X+t.Center.X,
+			t.Translation.Y+t.Center.Y,
+			t.Translation.Z+t.Center.Z,
+		)
+	} else {
+		gn.SetPosition(t.Translation.X, t.Translation.Y, t.Translation.Z)
+	}
 
 	if t.Rotation.W != 0 {
 		axis := math32.Vector3{X: t.Rotation.X, Y: t.Rotation.Y, Z: t.Rotation.Z}
@@ -81,8 +93,16 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
 	gn.SetScale(t.Scale.X, t.Scale.Y, t.Scale.Z)
 	parent.Add(gn)
 
+	childParent := gn
+	if hasCenter {
+		inner := core.NewNode()
+		inner.SetPosition(-t.Center.X, -t.Center.Y, -t.Center.Z)
+		gn.Add(inner)
+		childParent = inner
+	}
+
 	for _, child := range t.Children {
-		convertNode(child, gn, baseDir)
+		convertNode(child, childParent, baseDir)
 	}
 }
 
@@ -99,6 +119,17 @@ func convertShape(s *node.Shape, parent *core.Node, baseDir string) {
 	if s.Geometry == nil {
 		return
 	}
+
+	// Lines and points use separate graphic types
+	switch gn := s.Geometry.(type) {
+	case *node.IndexedLineSet:
+		convertIndexedLineSet(gn, s.Appearance, parent)
+		return
+	case *node.PointSet:
+		convertPointSet(gn, s.Appearance, parent)
+		return
+	}
+
 	mat := buildMaterial(s.Appearance, baseDir)
 	geom := buildGeometry(s.Geometry)
 	if geom == nil {
@@ -433,7 +464,10 @@ func convertSpotLight(sl *node.SpotLight, parent *core.Node) {
 	}
 	l := light.NewSpot(toColor(&sl.Color), sl.Intensity)
 	l.SetPosition(sl.Location.X, sl.Location.Y, sl.Location.Z)
+	l.SetDirection(sl.Direction.X, sl.Direction.Y, sl.Direction.Z)
 	l.SetCutoffAngle(sl.CutOffAngle * 180.0 / math.Pi)
+	l.SetLinearDecay(sl.Attenuation.Y)
+	l.SetQuadraticDecay(sl.Attenuation.Z)
 	l.SetName(sl.GetName())
 	parent.Add(l)
 }
@@ -492,4 +526,132 @@ func GetBackground(nodes []node.Node) *node.Background {
 		}
 	}
 	return nil
+}
+
+// GetNavigationInfo searches for the first NavigationInfo node.
+func GetNavigationInfo(nodes []node.Node) *node.NavigationInfo {
+	for _, n := range nodes {
+		if ni, ok := n.(*node.NavigationInfo); ok {
+			return ni
+		}
+		switch v := n.(type) {
+		case *node.Transform:
+			if ni := GetNavigationInfo(v.Children); ni != nil {
+				return ni
+			}
+		case *node.Group:
+			if ni := GetNavigationInfo(v.Children); ni != nil {
+				return ni
+			}
+		}
+	}
+	return nil
+}
+
+// GetFog searches for the first Fog node.
+func GetFog(nodes []node.Node) *node.Fog {
+	for _, n := range nodes {
+		if fg, ok := n.(*node.Fog); ok {
+			return fg
+		}
+		switch v := n.(type) {
+		case *node.Transform:
+			if fg := GetFog(v.Children); fg != nil {
+				return fg
+			}
+		case *node.Group:
+			if fg := GetFog(v.Children); fg != nil {
+				return fg
+			}
+		}
+	}
+	return nil
+}
+
+func convertIndexedLineSet(ils *node.IndexedLineSet, app *node.Appearance, parent *core.Node) {
+	if ils.Coord == nil || len(ils.Coord.Point) == 0 {
+		return
+	}
+
+	geom := geometry.NewGeometry()
+	nPts := len(ils.Coord.Point)
+
+	positions := math32.NewArrayF32(0, nPts*3)
+	for _, p := range ils.Coord.Point {
+		positions.Append(p.X, p.Y, p.Z)
+	}
+	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
+
+	// Basic shader requires per-vertex colors
+	colors := math32.NewArrayF32(0, nPts*3)
+	if ils.Color != nil && len(ils.Color.Color) > 0 {
+		nColors := len(ils.Color.Color)
+		for i := 0; i < nPts; i++ {
+			ci := i
+			if ci >= nColors {
+				ci = nColors - 1
+			}
+			c := ils.Color.Color[ci]
+			colors.Append(c.R, c.G, c.B)
+		}
+	} else {
+		var r, g, b float32 = 1, 1, 1
+		if app != nil && app.Material != nil {
+			ec := app.Material.EmissiveColor
+			r, g, b = ec.R, ec.G, ec.B
+		}
+		for i := 0; i < nPts; i++ {
+			colors.Append(r, g, b)
+		}
+	}
+	geom.AddVBO(gls.NewVBO(colors).AddAttrib(gls.VertexColor))
+
+	// Build line pair indices from polylines separated by -1
+	lineIndices := math32.NewArrayU32(0, 0)
+	nCoords := uint32(nPts)
+	var strip []uint32
+	for _, idx := range ils.CoordIndex {
+		if idx == -1 {
+			for i := 0; i+1 < len(strip); i++ {
+				lineIndices.Append(strip[i], strip[i+1])
+			}
+			strip = strip[:0]
+		} else if uint32(idx) < nCoords {
+			strip = append(strip, uint32(idx))
+		}
+	}
+	for i := 0; i+1 < len(strip); i++ {
+		lineIndices.Append(strip[i], strip[i+1])
+	}
+	geom.SetIndices(lineIndices)
+
+	mat := material.NewBasic()
+	lines := graphic.NewLines(geom, mat)
+	parent.Add(lines)
+}
+
+func convertPointSet(ps *node.PointSet, app *node.Appearance, parent *core.Node) {
+	if ps.Coord == nil || len(ps.Coord.Point) == 0 {
+		return
+	}
+
+	geom := geometry.NewGeometry()
+
+	positions := math32.NewArrayF32(0, len(ps.Coord.Point)*3)
+	for _, p := range ps.Coord.Point {
+		positions.Append(p.X, p.Y, p.Z)
+	}
+	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
+
+	ptColor := &math32.Color{R: 1, G: 1, B: 1}
+	if ps.Color != nil && len(ps.Color.Color) > 0 {
+		ptColor = toColor(&ps.Color.Color[0])
+	} else if app != nil && app.Material != nil {
+		ptColor = toColor(&app.Material.EmissiveColor)
+	}
+	mat := material.NewPoint(ptColor)
+	mat.SetSize(2.0)
+
+	pts := graphic.NewPoints(geom, mat)
+	parent.Add(pts)
 }

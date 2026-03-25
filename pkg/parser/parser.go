@@ -689,6 +689,20 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parseSpotLightField(v, fieldName)
 	case *node.Inline:
 		p.parseInlineField(v, fieldName)
+	case *node.NavigationInfo:
+		p.parseNavigationInfoField(v, fieldName)
+	case *node.Fog:
+		p.parseFogField(v, fieldName)
+	case *node.Switch:
+		p.parseSwitchField(v, fieldName)
+	case *node.LOD:
+		p.parseLODField(v, fieldName)
+	case *node.Anchor:
+		p.parseAnchorField(v, fieldName)
+	case *node.Billboard:
+		p.parseBillboardField(v, fieldName)
+	case *node.Collision:
+		p.parseCollisionField(v, fieldName)
 	default:
 		p.skipFieldValue()
 	}
@@ -961,6 +975,137 @@ func (p *Parser) parseViewpointField(vp *node.Viewpoint, field string) {
 	default:
 		p.skipFieldValue()
 	}
+}
+
+func (p *Parser) parseNavigationInfoField(ni *node.NavigationInfo, field string) {
+	switch field {
+	case "avatarSize":
+		ni.AvatarSize = p.parseMFFloat()
+	case "headlight":
+		ni.Headlight = p.parseBool()
+	case "speed":
+		ni.Speed = p.parseFloat()
+	case "type":
+		ni.Type = p.parseMFString()
+	case "visibilityLimit":
+		ni.VisibilityLimit = p.parseFloat()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseFogField(f *node.Fog, field string) {
+	switch field {
+	case "color":
+		c := p.parseVec3f()
+		f.Color = vec.NewColor(c.X, c.Y, c.Z)
+	case "fogType":
+		f.FogType = p.parseString()
+	case "visibilityRange":
+		f.VisibilityRange = p.parseFloat()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseSwitchField(sw *node.Switch, field string) {
+	switch field {
+	case "whichChoice":
+		sw.WhichChoice = p.parseInt32()
+	case "choice":
+		sw.Choice = p.parseMFNode()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseLODField(lod *node.LOD, field string) {
+	switch field {
+	case "center":
+		lod.Center = p.parseVec3f()
+	case "range":
+		lod.Range = p.parseMFFloat()
+	case "level":
+		lod.Level = p.parseMFNode()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseAnchorField(a *node.Anchor, field string) {
+	switch field {
+	case "children":
+		p.parseChildren(&a.GroupingNode)
+	case "url":
+		a.URL = p.parseMFString()
+		a.OrigURL = append([]string(nil), a.URL...)
+	case "description":
+		a.Description = p.parseString()
+	case "parameter":
+		a.Parameter = p.parseMFString()
+	case "bboxCenter":
+		a.BboxCenter = p.parseVec3f()
+	case "bboxSize":
+		a.BboxSize = p.parseVec3f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseBillboardField(bb *node.Billboard, field string) {
+	switch field {
+	case "children":
+		p.parseChildren(&bb.GroupingNode)
+	case "axisOfRotation":
+		bb.AxisOfRotation = p.parseVec3f()
+	case "bboxCenter":
+		bb.BboxCenter = p.parseVec3f()
+	case "bboxSize":
+		bb.BboxSize = p.parseVec3f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseCollisionField(col *node.Collision, field string) {
+	switch field {
+	case "children":
+		p.parseChildren(&col.GroupingNode)
+	case "collide":
+		col.Collide = p.parseBool()
+	case "proxy":
+		col.Proxy = p.parseStatement()
+	case "bboxCenter":
+		col.BboxCenter = p.parseVec3f()
+	case "bboxSize":
+		col.BboxSize = p.parseVec3f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseMFNode() []node.Node {
+	var nodes []node.Node
+	if p.lex.Peek() == TokOpenBracket {
+		p.lex.Next()
+		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {
+			if p.lex.Peek() == TokComma {
+				p.lex.Next()
+				continue
+			}
+			child := p.parseStatement()
+			if child != nil {
+				nodes = append(nodes, child)
+			}
+		}
+		p.lex.Next()
+	} else {
+		child := p.parseStatement()
+		if child != nil {
+			nodes = append(nodes, child)
+		}
+	}
+	return nodes
 }
 
 func (p *Parser) parseDirLightField(dl *node.DirectionalLight, field string) {
