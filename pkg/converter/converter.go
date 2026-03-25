@@ -175,20 +175,26 @@ func convertShape(s *node.Shape, parent *core.Node, baseDir string) {
 }
 
 func buildMaterial(app *node.Appearance, baseDir string) material.IMaterial {
-	if app == nil || app.Material == nil {
+	if app == nil {
 		return material.NewStandard(&math32.Color{R: 0.8, G: 0.8, B: 0.8})
 	}
 
-	m := app.Material
-	dc := toColor(&m.DiffuseColor)
-	mat := material.NewStandard(dc)
-	mat.SetEmissiveColor(toColor(&m.EmissiveColor))
-	mat.SetSpecularColor(toColor(&m.SpecularColor))
-	mat.SetShininess(m.Shininess * 128.0)
-
-	if m.Transparency > 0 {
-		mat.SetOpacity(1.0 - m.Transparency)
-		mat.SetTransparent(true)
+	// When there's a texture but no Material node, use white so the texture
+	// colours come through unmodified.
+	var mat *material.Standard
+	if app.Material != nil {
+		m := app.Material
+		dc := toColor(&m.DiffuseColor)
+		mat = material.NewStandard(dc)
+		mat.SetEmissiveColor(toColor(&m.EmissiveColor))
+		mat.SetSpecularColor(toColor(&m.SpecularColor))
+		mat.SetShininess(m.Shininess * 128.0)
+		if m.Transparency > 0 {
+			mat.SetOpacity(1.0 - m.Transparency)
+			mat.SetTransparent(true)
+		}
+	} else {
+		mat = material.NewStandard(&math32.Color{R: 1, G: 1, B: 1})
 	}
 
 	if app.Texture != nil {
