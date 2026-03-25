@@ -30,7 +30,8 @@ type ProtoFieldDecl struct {
 type ProtoDefinition struct {
 	Name   string
 	Fields []ProtoFieldDecl
-	Body   string // raw VRML text between the body braces
+	Body   string   // raw VRML text between the body braces
+	URLs   []string // EXTERNPROTO URL list (empty for regular PROTOs)
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +307,20 @@ func sfTokenCount(typeName string) int {
 // instantiateProto creates nodes from a PROTO instance.
 // Called after the opening '{' of the instance has been consumed.
 func (p *Parser) instantiateProto(def *ProtoDefinition) []node.Node {
+	// Resolve EXTERNPROTO if needed
+	if def.Body == "" && len(def.URLs) > 0 {
+		if !p.resolveExternProto(def) {
+			p.errorf("could not resolve EXTERNPROTO %s", def.Name)
+			for p.lex.Peek() != TokCloseBrace && p.lex.Peek() != TokEOF {
+				p.lex.Next()
+			}
+			if p.lex.Peek() == TokCloseBrace {
+				p.lex.Next()
+			}
+			return nil
+		}
+	}
+
 	// Build default values map
 	values := make(map[string]string)
 	for _, f := range def.Fields {
@@ -342,6 +357,8 @@ func (p *Parser) instantiateProto(def *ProtoDefinition) []node.Node {
 	sub := NewParser(strings.NewReader(body))
 	sub.defTable = p.defTable
 	sub.protoTable = p.protoTable
+	sub.baseDir = p.baseDir
+	sub.urlFetcher = p.urlFetcher
 	nodes := sub.Parse()
 
 	// Propagate errors and DEF names
@@ -460,18 +477,14 @@ func (p *Parser) parseEXTERNPROTOFull() {
 	}
 	fields := p.parseExternProtoInterface()
 
-	// Skip URL list
-	if p.lex.Peek() == TokOpenBracket {
-		p.lex.Next()
-		_ = p.lex.CaptureBlock('[', ']')
-	} else if p.lex.Peek() == TokString {
-		p.lex.Next()
-	}
+	// Parse URL list
+	urls := p.parseURLList()
 
 	def := &ProtoDefinition{
 		Name:   name,
 		Fields: fields,
 		Body:   "",
+		URLs:   urls,
 	}
 	p.protoTable[name] = def
 }

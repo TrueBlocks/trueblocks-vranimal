@@ -332,6 +332,8 @@ type Parser struct {
 	defTable   map[string]node.Node
 	protoTable map[string]*ProtoDefinition
 	errors     []string
+	baseDir    string
+	urlFetcher func(url string) (io.ReadCloser, error)
 }
 
 // NewParser creates a parser from an io.Reader.
@@ -342,6 +344,12 @@ func NewParser(r io.Reader) *Parser {
 		protoTable: make(map[string]*ProtoDefinition),
 	}
 }
+
+// SetBaseDir sets the base directory for resolving relative EXTERNPROTO URLs.
+func (p *Parser) SetBaseDir(dir string) { p.baseDir = dir }
+
+// SetURLFetcher sets a custom URL fetcher (for testing).
+func (p *Parser) SetURLFetcher(f func(string) (io.ReadCloser, error)) { p.urlFetcher = f }
 
 // Errors returns any parse errors encountered.
 func (p *Parser) Errors() []string { return p.errors }
@@ -628,6 +636,7 @@ func (p *Parser) parseNodeBody(n node.Node, typeName string) {
 }
 
 func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
+	_ = typeName
 	switch v := n.(type) {
 	case *node.Transform:
 		p.parseTransformField(v, fieldName)
@@ -671,6 +680,8 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parseDirLightField(v, fieldName)
 	case *node.PointLight:
 		p.parsePointLightField(v, fieldName)
+	case *node.SpotLight:
+		p.parseSpotLightField(v, fieldName)
 	default:
 		p.skipFieldValue()
 	}
@@ -985,6 +996,34 @@ func (p *Parser) parsePointLightField(pl *node.PointLight, field string) {
 	}
 }
 
+func (p *Parser) parseSpotLightField(sl *node.SpotLight, field string) {
+	switch field {
+	case "location":
+		sl.Location = p.parseVec3f()
+	case "direction":
+		sl.Direction = p.parseVec3f()
+	case "radius":
+		sl.Radius = p.parseFloat()
+	case "beamWidth":
+		sl.BeamWidth = p.parseFloat()
+	case "cutOffAngle":
+		sl.CutOffAngle = p.parseFloat()
+	case "on":
+		sl.On = p.parseBool()
+	case "color":
+		c := p.parseVec3f()
+		sl.Color = vec.NewColor(c.X, c.Y, c.Z)
+	case "intensity":
+		sl.Intensity = p.parseFloat()
+	case "ambientIntensity":
+		sl.AmbientIntensity = p.parseFloat()
+	case "attenuation":
+		sl.Attenuation = p.parseVec3f()
+	default:
+		p.skipFieldValue()
+	}
+}
+
 func (p *Parser) parseChildren(g *node.GroupingNode) {
 	if p.lex.Peek() == TokOpenBracket {
 		p.lex.Next()
@@ -1218,11 +1257,12 @@ func (p *Parser) skipBlock() {
 		depth := 1
 		for depth > 0 {
 			t := p.lex.Next()
-			if t == open {
+			switch t {
+			case open:
 				depth++
-			} else if t == closeT {
+			case closeT:
 				depth--
-			} else if t == TokEOF {
+			case TokEOF:
 				return
 			}
 		}

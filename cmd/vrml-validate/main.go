@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/validator"
@@ -24,6 +25,7 @@ func main() {
 		}
 
 		p := parser.NewParser(f)
+		p.SetBaseDir(filepath.Dir(path))
 		nodes := p.Parse()
 		f.Close()
 

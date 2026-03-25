@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
@@ -25,6 +26,7 @@ func main() {
 	defer f.Close()
 
 	p := parser.NewParser(f)
+	p.SetBaseDir(filepath.Dir(filename))
 	nodes := p.Parse()
 	if errs := p.Errors(); len(errs) > 0 {
 		fmt.Fprintf(os.Stderr, "Parse errors:\n  %s\n", strings.Join(errs, "\n  "))

@@ -46,6 +46,7 @@ func encodeFile(wrlPath string) error {
 	defer f.Close()
 
 	p := parser.NewParser(f)
+	p.SetBaseDir(filepath.Dir(wrlPath))
 	nodes := p.Parse()
 	if errs := p.Errors(); len(errs) > 0 {
 		for _, e := range errs {
