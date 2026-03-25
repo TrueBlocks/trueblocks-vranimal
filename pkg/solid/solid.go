@@ -353,3 +353,208 @@ func (s *Solid) Merge(other *Solid) {
 		s.nVerts += other.nVerts
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Accessors
+// ---------------------------------------------------------------------------
+
+// GetFirstFace returns the head of the face list.
+func (s *Solid) GetFirstFace() *Face { return s.Faces }
+
+// GetFirstEdge returns the head of the edge list.
+func (s *Solid) GetFirstEdge() *Edge { return s.Edges }
+
+// GetFirstVertex returns the head of the vertex list.
+func (s *Solid) GetFirstVertex() *Vertex { return s.Verts }
+
+// ---------------------------------------------------------------------------
+// Topology classification
+// ---------------------------------------------------------------------------
+
+// IsWire returns true if the solid has exactly one face (wire-frame).
+func (s *Solid) IsWire() bool { return s.nFaces == 1 }
+
+// IsLamina returns true if the solid has exactly two faces.
+func (s *Solid) IsLamina() bool { return s.nFaces == 2 }
+
+// ---------------------------------------------------------------------------
+// Revert / CalcVertexNormals
+// ---------------------------------------------------------------------------
+
+// Revert reverses the winding order of all faces.
+func (s *Solid) Revert() {
+	for f := s.Faces; f != nil; f = f.Next {
+		f.Revert()
+	}
+}
+
+// CalcVertexNormals computes vertex normals for all vertices.
+func (s *Solid) CalcVertexNormals() {
+	for v := s.Verts; v != nil; v = v.Next {
+		v.CalcNormal()
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup - rebuild edge/vertex lists from face loops
+// ---------------------------------------------------------------------------
+
+// Cleanup rebuilds the edge and vertex lists by walking all face loops.
+// This is useful after topological operations that may leave stale list entries.
+func (s *Solid) Cleanup() {
+	s.Edges = nil
+	s.nEdges = 0
+	s.Verts = nil
+	s.nVerts = 0
+
+	for f := s.Faces; f != nil; f = f.Next {
+		for _, l := range f.Loops {
+			l.ForEachHe(func(he *HalfEdge) bool {
+				if he.Edge != nil && !he.Edge.Marked(VISITED) {
+					he.Edge.Mark = VISITED
+					s.AddEdge(he.Edge)
+				}
+				if he.Vertex != nil && !he.Vertex.IsMarked(VISITED) {
+					he.Vertex.Mark = VISITED
+					s.AddVertex(he.Vertex)
+				}
+				return true
+			})
+		}
+	}
+
+	// Clear visited marks
+	for e := s.Edges; e != nil; e = e.Next {
+		e.Mark = 0
+	}
+	for v := s.Verts; v != nil; v = v.Next {
+		v.Mark = 0
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Copy / Clone
+// ---------------------------------------------------------------------------
+
+// Copy creates a deep copy of the solid. The new solid has its own vertices,
+// edges, faces, loops, and half-edges.
+func (s *Solid) Copy() *Solid {
+	ns := NewSolid()
+	if s.Verts == nil {
+		return ns
+	}
+
+	// Map old vertices to new vertices
+	vmap := make(map[*Vertex]*Vertex)
+	for v := s.Verts; v != nil; v = v.Next {
+		nv := NewVertexVec(v.Loc)
+		nv.Index = v.Index
+		nv.Mark = v.Mark
+		nv.Scratch = v.Scratch
+		if v.Data != nil {
+			d := *v.Data
+			nv.Data = &d
+		}
+		ns.AddVertex(nv)
+		vmap[v] = nv
+	}
+
+	// Map old half-edges to new half-edges (built per-loop)
+	hemap := make(map[*HalfEdge]*HalfEdge)
+
+	for f := s.Faces; f != nil; f = f.Next {
+		nf := &Face{
+			Solid:  ns,
+			Normal: f.Normal,
+			D:      f.D,
+			Index:  f.Index,
+			Mark1:  f.Mark1,
+			Mark2:  f.Mark2,
+		}
+		if f.Data != nil {
+			d := *f.Data
+			nf.Data = &d
+		}
+		ns.AddFace(nf)
+
+		for _, l := range f.Loops {
+			nl := &Loop{Face: nf}
+			isOuter := l == f.LoopOut
+			nf.AddLoop(nl, isOuter)
+
+			l.ForEachHe(func(he *HalfEdge) bool {
+				nv := vmap[he.Vertex]
+				nhe := &HalfEdge{
+					Vertex: nv,
+					Loop:   nl,
+					Mark:   he.Mark,
+				}
+				if he.Data != nil {
+					d := *he.Data
+					nhe.Data = &d
+				}
+				nhe.Next = nhe
+				nhe.Prev = nhe
+				nl.AddHalfEdge(nhe)
+				if nv.He == nil {
+					nv.He = nhe
+				}
+				hemap[he] = nhe
+				return true
+			})
+		}
+	}
+
+	// Recreate edges
+	for e := s.Edges; e != nil; e = e.Next {
+		ne := &Edge{
+			Index: e.Index,
+			Mark:  e.Mark,
+		}
+		if nhe1, ok := hemap[e.He1]; ok {
+			ne.He1 = nhe1
+			nhe1.Edge = ne
+		}
+		if nhe2, ok := hemap[e.He2]; ok {
+			ne.He2 = nhe2
+			nhe2.Edge = ne
+		}
+		ns.AddEdge(ne)
+	}
+
+	return ns
+}
+
+// ---------------------------------------------------------------------------
+// AllocateColorData - pre-allocate per-element attribute storage
+// ---------------------------------------------------------------------------
+
+// AllocateColorData allocates ColorData for elements at the specified level.
+// where: PerFace, PerVertex, or PerVertexPerFace.
+func (s *Solid) AllocateColorData(where int) {
+	switch where {
+	case PerVertex:
+		for v := s.Verts; v != nil; v = v.Next {
+			if v.Data == nil {
+				v.Data = &ColorData{}
+			}
+		}
+	case PerVertexPerFace:
+		for f := s.Faces; f != nil; f = f.Next {
+			for _, l := range f.Loops {
+				l.ForEachHe(func(he *HalfEdge) bool {
+					if he.Data == nil {
+						he.Data = &ColorData{}
+					}
+					return true
+				})
+			}
+		}
+	case PerFace:
+		for f := s.Faces; f != nil; f = f.Next {
+			if f.Data == nil {
+				f.Data = &ColorData{}
+			}
+		}
+	}
+}

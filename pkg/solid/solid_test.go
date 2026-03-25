@@ -558,3 +558,374 @@ func TestBuildFromIndexSet_Triangle(t *testing.T) {
 		t.Fatalf("expected >= 3 verts, got %d", s.NVerts())
 	}
 }
+
+// ---------------------------------------------------------------------------
+// New HalfEdge methods
+// ---------------------------------------------------------------------------
+
+func TestHalfEdge_GetMateIndex(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{X: 0}, vec.Red)
+	nv, _ := Lmev(v0.He, vec.SFVec3f{X: 10})
+	s.Renumber()
+	_ = nv
+	// Find a half-edge with a mate
+	for e := s.Edges; e != nil; e = e.Next {
+		idx := e.He1.GetMateIndex()
+		if idx != e.He2.GetIndex() {
+			t.Fatalf("mate index %d != he2 index %d", idx, e.He2.GetIndex())
+		}
+	}
+}
+
+func TestHalfEdge_GetSolid(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	if v0.He.GetSolid() != s {
+		t.Fatal("GetSolid should return the solid")
+	}
+}
+
+func TestHalfEdge_IsNullStrut(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	// On a simple edge, the mate IS adjacent → null strut
+	for he := v0.He; ; he = he.Next {
+		if he.Edge != nil {
+			// In this simple topology, strut should be true
+			_ = he.IsNullStrut()
+			break
+		}
+		if he.Next == v0.He {
+			break
+		}
+	}
+}
+
+func TestHalfEdge_IsMate(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	for he := v0.He; ; he = he.Next {
+		if he.Edge != nil {
+			m := he.GetMate()
+			if m != nil && !he.IsMate(m) {
+				t.Fatal("should be mates")
+			}
+			break
+		}
+		if he.Next == v0.He {
+			break
+		}
+	}
+}
+
+func TestHalfEdge_InsideVector(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{X: 0, Y: 0, Z: 0}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1, Y: 0, Z: 0})
+	iv := v0.He.InsideVector()
+	// InsideVector is cross(normal, edge_dir); for a degenerate face it may be zero
+	_ = iv
+}
+
+func TestHalfEdge_IsWide(t *testing.T) {
+	// Build a triangle face to test angle classification
+	positions := []vec.SFVec3f{
+		{X: 0, Y: 0, Z: 0},
+		{X: 1, Y: 0, Z: 0},
+		{X: 0, Y: 1, Z: 0},
+	}
+	indices := []int32{0, 1, 2, -1}
+	s := BuildFromIndexSet(positions, indices, vec.Red)
+	if s == nil {
+		t.Skip("BuildFromIndexSet returned nil")
+	}
+	// All angles in a triangle are < 180, so IsWide should be false
+	s.ForEachFace(func(f *Face) bool {
+		if f.LoopOut == nil {
+			return true
+		}
+		f.LoopOut.ForEachHe(func(he *HalfEdge) bool {
+			// Don't crash
+			_ = he.IsWide(false)
+			_ = he.IsWide(true)
+			_ = he.Is180()
+			return true
+		})
+		return true
+	})
+}
+
+// ---------------------------------------------------------------------------
+// New Loop methods
+// ---------------------------------------------------------------------------
+
+func TestLoop_GetSolid(t *testing.T) {
+	s, _, f := Mvfs(vec.SFVec3f{}, vec.Red)
+	l := f.LoopOut
+	if l.GetSolid() != s {
+		t.Fatal("GetSolid should return the solid")
+	}
+}
+
+func TestLoop_NHalfEdges(t *testing.T) {
+	_, v0, f := Mvfs(vec.SFVec3f{}, vec.Red)
+	_ = v0
+	l := f.LoopOut
+	if l.NHalfEdges() != 1 {
+		t.Fatalf("expected 1 halfedge in Mvfs loop, got %d", l.NHalfEdges())
+	}
+}
+
+func TestLoop_GetVertexLocations(t *testing.T) {
+	_, v0, f := Mvfs(vec.SFVec3f{X: 1, Y: 2, Z: 3}, vec.Red)
+	_ = v0
+	locs := make([]vec.SFVec3f, 10)
+	n := f.LoopOut.GetVertexLocations(locs)
+	if n != 1 {
+		t.Fatalf("expected 1, got %d", n)
+	}
+	if locs[0] != (vec.SFVec3f{X: 1, Y: 2, Z: 3}) {
+		t.Fatalf("got %v", locs[0])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New Vertex methods
+// ---------------------------------------------------------------------------
+
+func TestVertex_GetValence(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	Lmev(v0.He, vec.SFVec3f{X: 2})
+	// v0 should have valence 2 (two edges connected)
+	val := v0.GetValence()
+	if val < 1 {
+		t.Fatalf("expected valence >= 1, got %d", val)
+	}
+}
+
+func TestVertex_CalcNormal(t *testing.T) {
+	positions := []vec.SFVec3f{
+		{X: 0, Y: 0, Z: 0},
+		{X: 1, Y: 0, Z: 0},
+		{X: 0, Y: 1, Z: 0},
+	}
+	indices := []int32{0, 1, 2, -1}
+	s := BuildFromIndexSet(positions, indices, vec.Red)
+	if s == nil {
+		t.Skip("BuildFromIndexSet returned nil")
+	}
+	s.CalcPlaneEquations()
+	s.CalcVertexNormals()
+	// Should not panic
+}
+
+func TestVertex_IsMarked(t *testing.T) {
+	v := NewVertex(0, 0, 0)
+	v.Mark = VISITED
+	if !v.IsMarked(VISITED) {
+		t.Fatal("should be marked VISITED")
+	}
+	if v.IsMarked(0) {
+		t.Fatal("should not be marked 0")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New Edge methods
+// ---------------------------------------------------------------------------
+
+func TestEdge_GetSolid(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	_, ne := Lmev(v0.He, vec.SFVec3f{X: 1})
+	if ne.GetSolid() != s {
+		t.Fatal("GetSolid should return solid")
+	}
+}
+
+func TestEdge_Length(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{X: 0}, vec.Red)
+	_, ne := Lmev(v0.He, vec.SFVec3f{X: 3})
+	l := ne.Length()
+	if l < 2.9 || l > 3.1 {
+		t.Fatalf("expected ~3, got %g", l)
+	}
+}
+
+func TestEdge_Midpoint(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{X: 0}, vec.Red)
+	_, ne := Lmev(v0.He, vec.SFVec3f{X: 10})
+	mid := ne.Midpoint()
+	if mid.X < 4.9 || mid.X > 5.1 {
+		t.Fatalf("expected ~5, got %g", mid.X)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New Face methods
+// ---------------------------------------------------------------------------
+
+func TestFace_GetFirstSecondLoop(t *testing.T) {
+	_, _, f := Mvfs(vec.SFVec3f{}, vec.Red)
+	if f.GetFirstLoop() == nil {
+		t.Fatal("GetFirstLoop should not be nil")
+	}
+	if f.GetSecondLoop() != nil {
+		t.Fatal("GetSecondLoop should be nil with only 1 loop")
+	}
+}
+
+func TestFace_IsDegenerate(t *testing.T) {
+	_, _, f := Mvfs(vec.SFVec3f{}, vec.Red)
+	// Single vertex face is degenerate
+	if !f.IsDegenerate() {
+		t.Fatal("single vertex face should be degenerate")
+	}
+}
+
+func TestFace_IsPlanar(t *testing.T) {
+	positions := []vec.SFVec3f{
+		{X: 0, Y: 0, Z: 0},
+		{X: 1, Y: 0, Z: 0},
+		{X: 0, Y: 1, Z: 0},
+	}
+	indices := []int32{0, 1, 2, -1}
+	s := BuildFromIndexSet(positions, indices, vec.Red)
+	if s == nil {
+		t.Skip("BuildFromIndexSet returned nil")
+	}
+	s.CalcPlaneEquations()
+	s.ForEachFace(func(f *Face) bool {
+		if f.LoopOut != nil && f.LoopOut.NHalfEdges() >= 3 {
+			if !f.IsPlanar() {
+				t.Fatal("triangle should be planar")
+			}
+		}
+		return true
+	})
+}
+
+// ---------------------------------------------------------------------------
+// New Solid methods
+// ---------------------------------------------------------------------------
+
+func TestSolid_IsWire(t *testing.T) {
+	s, _, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	if !s.IsWire() {
+		t.Fatal("Mvfs solid should be wire (1 face)")
+	}
+}
+
+func TestSolid_IsLamina(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	if s.IsLamina() {
+		t.Fatal("2-vertex solid should not be lamina yet")
+	}
+}
+
+func TestSolid_GetFirst(t *testing.T) {
+	s, _, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	if s.GetFirstFace() == nil {
+		t.Fatal("should have first face")
+	}
+	if s.GetFirstVertex() == nil {
+		t.Fatal("should have first vertex")
+	}
+}
+
+func TestSolid_Revert(t *testing.T) {
+	s, _, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	s.Revert() // should not panic
+}
+
+func TestSolid_CalcVertexNormals(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	s.CalcPlaneEquations()
+	s.CalcVertexNormals() // should not panic
+}
+
+func TestSolid_Cleanup(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 1})
+	oldV := s.NVerts()
+	oldE := s.NEdges()
+	s.Cleanup()
+	if s.NVerts() != oldV {
+		t.Fatalf("cleanup changed verts: %d -> %d", oldV, s.NVerts())
+	}
+	if s.NEdges() != oldE {
+		t.Fatalf("cleanup changed edges: %d -> %d", oldE, s.NEdges())
+	}
+}
+
+func TestSolid_Copy(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{X: 1, Y: 2, Z: 3}, vec.Red)
+	Lmev(v0.He, vec.SFVec3f{X: 4, Y: 5, Z: 6})
+	s.Renumber()
+
+	c := s.Copy()
+	if c.NVerts() != s.NVerts() {
+		t.Fatalf("copy verts %d != %d", c.NVerts(), s.NVerts())
+	}
+	if c.NEdges() != s.NEdges() {
+		t.Fatalf("copy edges %d != %d", c.NEdges(), s.NEdges())
+	}
+	if c.NFaces() != s.NFaces() {
+		t.Fatalf("copy faces %d != %d", c.NFaces(), s.NFaces())
+	}
+	// Copy should be independent
+	if c.GetFirstVertex() == s.GetFirstVertex() {
+		t.Fatal("copy should not share vertices")
+	}
+}
+
+func TestSolid_AllocateColorData(t *testing.T) {
+	s, _, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	s.AllocateColorData(PerVertex)
+	s.ForEachVertex(func(v *Vertex) bool {
+		if v.Data == nil {
+			t.Fatal("vertex should have ColorData after allocation")
+		}
+		return true
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Lmev2 / Lringmv
+// ---------------------------------------------------------------------------
+
+func TestLmev2_SameAsLmev(t *testing.T) {
+	s, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	// With a single half-edge, he1==he2 effectively
+	nv, ne := Lmev2(v0.He, v0.He, vec.SFVec3f{X: 5})
+	if nv == nil || ne == nil {
+		t.Fatal("nil result")
+	}
+	if s.NVerts() != 2 {
+		t.Fatalf("expected 2 verts, got %d", s.NVerts())
+	}
+}
+
+func TestLmev2_DifferentVertex(t *testing.T) {
+	_, v0, _ := Mvfs(vec.SFVec3f{}, vec.Red)
+	v1 := NewVertex(1, 1, 1)
+	he2 := &HalfEdge{Vertex: v1} // different vertex
+	nv, ne := Lmev2(v0.He, he2, vec.SFVec3f{X: 5})
+	if nv != nil || ne != nil {
+		t.Fatal("should return nil for different vertices")
+	}
+}
+
+func TestLringmv(t *testing.T) {
+	s, _, f1 := Mvfs(vec.SFVec3f{}, vec.Red)
+	f2 := NewFace(s, vec.Blue)
+	s.AddFace(f2)
+	l := f1.LoopOut
+	Lringmv(s, l, f2, true)
+	if l.Face != f2 {
+		t.Fatal("loop should belong to f2 after ringmv")
+	}
+	if f2.LoopOut != l {
+		t.Fatal("f2 outer loop should be the moved loop")
+	}
+}

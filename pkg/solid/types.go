@@ -245,6 +245,84 @@ func (he *HalfEdge) GetTexCoord(def vec.SFVec2f) vec.SFVec2f {
 	return def
 }
 
+// GetMateIndex returns the vertex index of the mate half-edge.
+func (he *HalfEdge) GetMateIndex() uint32 {
+	m := he.GetMate()
+	if m == nil {
+		return 0
+	}
+	return m.GetIndex()
+}
+
+// GetSolid returns the solid this half-edge belongs to.
+func (he *HalfEdge) GetSolid() *Solid {
+	f := he.GetFace()
+	if f == nil {
+		return nil
+	}
+	return f.Solid
+}
+
+// IsNullStrut returns true if this edge is a "strut" — the mate is adjacent in the loop.
+func (he *HalfEdge) IsNullStrut() bool {
+	m := he.GetMate()
+	if m == nil {
+		return false
+	}
+	return he == m.Next || he == m.Prev
+}
+
+// IsMate returns true if he is the mate of this half-edge.
+func (he *HalfEdge) IsMate(other *HalfEdge) bool {
+	return he.GetMate() == other
+}
+
+// IsNeighbor returns true if he and other share a face and are on opposite sides of their edges.
+func (he *HalfEdge) IsNeighbor(other *HalfEdge) bool {
+	if he.Edge == nil || other.Edge == nil {
+		return false
+	}
+	if he.GetFace() != other.GetFace() {
+		return false
+	}
+	return (he == he.Edge.He1 && other == other.Edge.He2) ||
+		(he == he.Edge.He2 && other == other.Edge.He1)
+}
+
+// InsideVector returns the inward-pointing vector at this half-edge (cross of face normal and edge direction).
+func (he *HalfEdge) InsideVector() vec.SFVec3f {
+	dir := he.Next.Vertex.Loc.Sub(he.Vertex.Loc)
+	return he.GetFaceNormal().Cross(dir)
+}
+
+// IsWide returns true if the interior angle at this vertex is greater than 180 degrees.
+// If inc180 is true, exactly 180 degrees is also considered wide.
+func (he *HalfEdge) IsWide(inc180 bool) bool {
+	v2 := he.Next.Vertex.Loc.Sub(he.Vertex.Loc)
+	v1 := he.Prev.Vertex.Loc.Sub(he.Vertex.Loc)
+	cross := v1.Cross(v2)
+	if cross.Length() < 1e-12 {
+		return inc180
+	}
+	cross = cross.Normalize()
+	norm := he.GetFaceNormal()
+	return cross.Dot(norm) < 0
+}
+
+// Is180 returns true if the interior angle is exactly 180 degrees.
+func (he *HalfEdge) Is180() bool {
+	return he.IsWide(true) && !he.IsWide(false)
+}
+
+// IsConvexEdge returns true if the dihedral angle across this edge is convex.
+func (he *HalfEdge) IsConvexEdge() bool {
+	m := he.GetMate()
+	if m == nil {
+		return true
+	}
+	return !he.IsWide(false) && !m.IsWide(false)
+}
+
 // ---------------------------------------------------------------------------
 // Loop - ordered ring of half-edges forming a polygon boundary
 // ---------------------------------------------------------------------------
@@ -358,6 +436,45 @@ func (l *Loop) IsOuterLoop() bool {
 	return l.Face.LoopOut == l
 }
 
+// GetSolid returns the solid this loop belongs to.
+func (l *Loop) GetSolid() *Solid {
+	if l.Face == nil {
+		return nil
+	}
+	return l.Face.Solid
+}
+
+// NHalfEdges returns the number of half-edges in the loop.
+func (l *Loop) NHalfEdges() int {
+	if l.HalfEdges == nil {
+		return 0
+	}
+	n := 0
+	l.ForEachHe(func(_ *HalfEdge) bool {
+		n++
+		return true
+	})
+	return n
+}
+
+// GetVertexLocations fills locs with vertex positions from this loop.
+// Returns the number of vertices written.
+func (l *Loop) GetVertexLocations(locs []vec.SFVec3f) int {
+	if l.HalfEdges == nil {
+		return 0
+	}
+	i := 0
+	l.ForEachHe(func(he *HalfEdge) bool {
+		if i >= len(locs) {
+			return false
+		}
+		locs[i] = he.Vertex.Loc
+		i++
+		return true
+	})
+	return i
+}
+
 // ---------------------------------------------------------------------------
 // Vertex - point in 3D space within the solid
 // ---------------------------------------------------------------------------
@@ -435,6 +552,123 @@ func (v *Vertex) GetTexCoord(def vec.SFVec2f) vec.SFVec2f {
 	return def
 }
 
+// IsMarked returns true if the vertex mark equals m.
+func (v *Vertex) IsMarked(m uint32) bool { return v.Mark == m }
+
+// GetValence returns the number of edges incident on this vertex.
+func (v *Vertex) GetValence() int {
+	if v.He == nil {
+		return 0
+	}
+	n := 0
+	he := v.He
+	for {
+		n++
+		m := he.GetMate()
+		if m == nil {
+			break
+		}
+		he = m.Next
+		if he == v.He {
+			break
+		}
+	}
+	return n
+}
+
+// CalcNormal computes the vertex normal by averaging adjacent face normals,
+// respecting crease edges. Ported from vraniml/src/solid/vertex.cpp.
+func (v *Vertex) CalcNormal() {
+	if v.He == nil {
+		return
+	}
+
+	var normal vec.SFVec3f
+	var nFaces int
+	var crease, nocrease *HalfEdge
+
+	start := v.He
+	he := start
+	openLoop := false
+	for {
+		if he.Edge != nil && he.Edge.Mark&CREASE != 0 {
+			crease = he
+		} else {
+			nocrease = he
+		}
+		normal = normal.Add(he.GetFaceNormal())
+		nFaces++
+		if nFaces > 1000 {
+			v.SetNormal(vec.YAxis)
+			return
+		}
+		m := he.GetMate()
+		if m == nil {
+			openLoop = true
+			break
+		}
+		he = m.Next
+		if he == start {
+			break
+		}
+	}
+	_ = openLoop
+
+	if crease == nil {
+		// Case 2: no creases — average all face normals
+		normal = normal.Scale(1.0 / float32(nFaces)).Normalize()
+		v.SetNormal(normal)
+		return
+	}
+
+	if nocrease == nil {
+		// Case 1: all creases — leave vertex normal unset, face normals will be used
+		return
+	}
+
+	// Case 3: mixed creases — store normals per half-edge
+	if crease.GetMate() == nil {
+		crease.SetNormal(crease.GetFaceNormal())
+		return
+	}
+
+	heTable := make([]*HalfEdge, 0, 32)
+	var accum vec.SFVec3f
+
+	he = crease.GetMate().Next
+	start = he
+	for {
+		heTable = append(heTable, he)
+		accum = accum.Add(he.GetFaceNormal())
+
+		if he.Edge != nil && he.Edge.Mark&CREASE != 0 {
+			// Concluded a face group — assign averaged normal
+			n := accum.Scale(1.0 / float32(len(heTable))).Normalize()
+			for _, h := range heTable {
+				h.SetNormal(n)
+			}
+			heTable = heTable[:0]
+			accum = vec.SFVec3f{}
+		}
+
+		m := he.GetMate()
+		if m == nil {
+			break
+		}
+		he = m.Next
+		if he == start {
+			break
+		}
+	}
+
+	if len(heTable) > 0 {
+		n := accum.Scale(1.0 / float32(len(heTable))).Normalize()
+		for _, h := range heTable {
+			h.SetNormal(n)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Edge - undirected edge connecting two half-edges
 // ---------------------------------------------------------------------------
@@ -478,6 +712,30 @@ func (e *Edge) GetLoop(which int) *Loop {
 
 // Marked returns true if the edge mark equals m.
 func (e *Edge) Marked(m uint32) bool { return e.Mark == m }
+
+// GetSolid returns the solid this edge belongs to (via He1's face).
+func (e *Edge) GetSolid() *Solid {
+	if e.He1 != nil {
+		return e.He1.GetSolid()
+	}
+	return nil
+}
+
+// Length returns the length of this edge.
+func (e *Edge) Length() float32 {
+	if e.He1 == nil || e.He2 == nil {
+		return 0
+	}
+	return e.He1.Vertex.Loc.Sub(e.He2.Vertex.Loc).Length()
+}
+
+// Midpoint returns the midpoint of this edge.
+func (e *Edge) Midpoint() vec.SFVec3f {
+	if e.He1 == nil || e.He2 == nil {
+		return vec.SFVec3f{}
+	}
+	return e.He1.Vertex.Loc.Add(e.He2.Vertex.Loc).Scale(0.5)
+}
 
 // ---------------------------------------------------------------------------
 // Face - polygon face with outer boundary and optional holes
@@ -663,3 +921,64 @@ func (f *Face) Marked1(m uint32) bool { return f.Mark1 == m }
 
 // Marked2 returns true if mark2 equals m.
 func (f *Face) Marked2(m uint32) bool { return f.Mark2 == m }
+
+// GetFirstLoop returns the first loop (outer boundary).
+func (f *Face) GetFirstLoop() *Loop {
+	if len(f.Loops) == 0 {
+		return nil
+	}
+	return f.Loops[0]
+}
+
+// GetSecondLoop returns the second loop (first hole), or nil.
+func (f *Face) GetSecondLoop() *Loop {
+	if len(f.Loops) < 2 {
+		return nil
+	}
+	return f.Loops[1]
+}
+
+// IsDegenerate returns true if the face has zero area or all vertices coincide.
+func (f *Face) IsDegenerate() bool {
+	if f.LoopOut == nil || f.LoopOut.HalfEdges == nil {
+		return true
+	}
+	v := f.LoopOut.HalfEdges.Vertex.Loc
+	allSame := true
+	for _, l := range f.Loops {
+		l.ForEachHe(func(he *HalfEdge) bool {
+			if he.Vertex.Loc != v {
+				allSame = false
+				return false
+			}
+			return true
+		})
+		if !allSame {
+			break
+		}
+	}
+	if allSame {
+		return true
+	}
+	a := f.Area()
+	return a < 1e-12 && a > -1e-12
+}
+
+// IsPlanar returns true if all vertices lie on the face's plane.
+func (f *Face) IsPlanar() bool {
+	for _, l := range f.Loops {
+		ok := true
+		l.ForEachHe(func(he *HalfEdge) bool {
+			d := f.GetDistance(he.Vertex.Loc)
+			if d > 1e-5 || d < -1e-5 {
+				ok = false
+				return false
+			}
+			return true
+		})
+		if !ok {
+			return false
+		}
+	}
+	return true
+}

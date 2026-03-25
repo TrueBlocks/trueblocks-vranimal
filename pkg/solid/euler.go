@@ -79,6 +79,48 @@ func Lmev(he *HalfEdge, loc vec.SFVec3f) (*Vertex, *Edge) {
 	return nv, ne
 }
 
+// Lmev2 splits a vertex between two half-edges in potentially different loops,
+// creating a new vertex and edge. This is the two-argument form from the C++ lmev.
+// he1 and he2 must share the same vertex; half-edges from he1 to he2 (via mate orbit)
+// are reassigned to the new vertex.
+// Ported from vraniml/src/solid/eulerops.cpp lmev(he1, he2, ...).
+func Lmev2(he1, he2 *HalfEdge, loc vec.SFVec3f) (*Vertex, *Edge) {
+	if he1.Vertex != he2.Vertex {
+		return nil, nil
+	}
+	s := he1.GetFace().Solid
+	nv := NewVertexVec(loc)
+	s.AddVertex(nv)
+
+	ne := NewEdge()
+	s.AddEdge(ne)
+
+	// Walk from he1 around the vertex orbit until he2, reassigning to nv
+	he := he1
+	for he != he2 {
+		he.Vertex = nv
+		m := he.GetMate()
+		if m == nil {
+			break
+		}
+		he = m.Next
+	}
+
+	// Insert new half-edges using the edge's AddHalfEdge pattern
+	nhe2 := &HalfEdge{Vertex: he2.Vertex, Edge: ne, Loop: he1.Loop}
+	ne.He2 = nhe2
+	insertBefore(he1, nhe2)
+
+	nhe1 := &HalfEdge{Vertex: nv, Edge: ne, Loop: he2.Loop}
+	ne.He1 = nhe1
+	insertBefore(he2, nhe1)
+
+	nv.He = nhe1
+	he2.Vertex.He = he2
+
+	return nv, ne
+}
+
 // Lmef creates a new edge and face by splitting a loop (Low Make Edge Face).
 // he1 and he2 are half-edges in the same loop; a new edge connects their vertices,
 // splitting the loop into two faces.
@@ -301,6 +343,13 @@ func Lkfmrh(killFace, keepFace *Face) {
 	})
 
 	s.RemoveFace(killFace)
+}
+
+// Lringmv moves a loop from one face to another.
+func Lringmv(s *Solid, l *Loop, toFace *Face, isOuter bool) {
+	fromFace := l.Face
+	fromFace.RemoveLoop(l)
+	toFace.AddLoop(l, isOuter)
 }
 
 // ---------------------------------------------------------------------------
