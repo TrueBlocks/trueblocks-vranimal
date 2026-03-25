@@ -27,12 +27,14 @@ import (
 // Used by the event engine to update g3n nodes when VRML fields change.
 type NodeMap struct {
 	Transforms map[*node.Transform]*core.Node
+	Materials  map[*node.Material]*material.Standard
 }
 
 // NewNodeMap creates an empty node mapping.
 func NewNodeMap() *NodeMap {
 	return &NodeMap{
 		Transforms: make(map[*node.Transform]*core.Node),
+		Materials:  make(map[*node.Material]*material.Standard),
 	}
 }
 
@@ -53,7 +55,7 @@ func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 	case *node.Group:
 		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Shape:
-		convertShape(v, parent, baseDir)
+		convertShape(v, parent, baseDir, nm)
 	case *node.DirectionalLight:
 		convertDirLight(v, parent)
 	case *node.PointLight:
@@ -81,7 +83,7 @@ func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 	}
 }
 
-// UpdateDynamic syncs changed VRML transform fields to their g3n counterparts.
+// UpdateDynamic syncs changed VRML transform/material fields to their g3n counterparts.
 func (nm *NodeMap) UpdateDynamic() {
 	for vrmlT, g3nNode := range nm.Transforms {
 		g3nNode.SetPosition(vrmlT.Translation.X, vrmlT.Translation.Y, vrmlT.Translation.Z)
@@ -93,6 +95,13 @@ func (nm *NodeMap) UpdateDynamic() {
 			g3nNode.SetQuaternionQuat(q)
 		}
 		g3nNode.SetScale(vrmlT.Scale.X, vrmlT.Scale.Y, vrmlT.Scale.Z)
+	}
+	for vrmlM, g3nMat := range nm.Materials {
+		g3nMat.SetColor(toColor(&vrmlM.DiffuseColor))
+		g3nMat.SetEmissiveColor(toColor(&vrmlM.EmissiveColor))
+		if vrmlM.Transparency > 0 {
+			g3nMat.SetOpacity(1.0 - vrmlM.Transparency)
+		}
 	}
 }
 
@@ -135,6 +144,12 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string, nm *
 		childParent = inner
 	}
 
+	// Tag g3n node with VRML children if this group contains pointing-device sensors.
+	// This lets the Picker walk up from a hit mesh to find sibling sensors.
+	if hasSensorChild(t.Children) {
+		childParent.SetUserData(asNodeSlice(t.Children))
+	}
+
 	for _, child := range t.Children {
 		convertNode(child, childParent, baseDir, nm)
 	}
@@ -144,12 +159,17 @@ func convertGroup(g *node.GroupingNode, parent *core.Node, baseDir string, nm *N
 	gn := core.NewNode()
 	gn.SetName(g.GetName())
 	parent.Add(gn)
+
+	if hasSensorChild(g.Children) {
+		gn.SetUserData(asNodeSlice(g.Children))
+	}
+
 	for _, child := range g.Children {
 		convertNode(child, gn, baseDir, nm)
 	}
 }
 
-func convertShape(s *node.Shape, parent *core.Node, baseDir string) {
+func convertShape(s *node.Shape, parent *core.Node, baseDir string, nm *NodeMap) {
 	if s.Geometry == nil {
 		return
 	}
@@ -172,6 +192,13 @@ func convertShape(s *node.Shape, parent *core.Node, baseDir string) {
 	mesh := graphic.NewMesh(geom, mat)
 	mesh.SetName(s.GetName())
 	parent.Add(mesh)
+
+	// Register material for dynamic updates (color changes via routes)
+	if s.Appearance != nil && s.Appearance.Material != nil {
+		if stdMat, ok := mat.(*material.Standard); ok {
+			nm.Materials[s.Appearance.Material] = stdMat
+		}
+	}
 }
 
 func buildMaterial(app *node.Appearance, baseDir string) material.IMaterial {
@@ -760,4 +787,22 @@ func convertPointSet(ps *node.PointSet, app *node.Appearance, parent *core.Node)
 
 	pts := graphic.NewPoints(geom, mat)
 	parent.Add(pts)
+}
+
+// hasSensorChild returns true if children contains a pointing-device sensor.
+func hasSensorChild(children []node.Node) bool {
+	for _, c := range children {
+		switch c.(type) {
+		case *node.TouchSensor, *node.PlaneSensor, *node.SphereSensor, *node.CylinderSensor:
+			return true
+		}
+	}
+	return false
+}
+
+// asNodeSlice converts a []node.Node for storage as UserData.
+func asNodeSlice(children []node.Node) []node.Node {
+	out := make([]node.Node, len(children))
+	copy(out, children)
+	return out
 }

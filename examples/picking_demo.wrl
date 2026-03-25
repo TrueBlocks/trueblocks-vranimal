@@ -1,0 +1,94 @@
+#VRML V2.0 utf8
+# picking_demo.wrl — Mouse Picking Demo
+#
+# HOLD the yellow CONE  -> blue cube turns green while held
+# CLICK the yellow CONE -> blue cube starts/stops spinning (toggle)
+# CLICK the blue CUBE   -> cone flashes yellow -> blue -> yellow
+
+Viewpoint { position 0 2 8 }
+
+# ---- CONE with TouchSensor ----
+DEF ConeGroup Transform {
+  translation -2 0 0
+  children [
+    DEF ConeSensor TouchSensor {}
+    Shape {
+      appearance Appearance {
+        material DEF ConeMat Material { diffuseColor 1 1 0 }
+      }
+      geometry Cone { bottomRadius 0.8 height 1.5 }
+    }
+  ]
+}
+
+# ---- CUBE with TouchSensor ----
+DEF CubeGroup Transform {
+  translation 2 0 0
+  children [
+    DEF CubeSensor TouchSensor {}
+    Shape {
+      appearance Appearance {
+        material DEF CubeMat Material { diffuseColor 0.2 0.6 1 }
+      }
+      geometry Box { size 1.2 1.2 1.2 }
+    }
+  ]
+}
+
+# ---- Continuous spin timer (looping, toggle on/off via cone click) ----
+DEF SpinTimer TimeSensor {
+  cycleInterval 2
+  loop TRUE
+}
+
+# ---- Spin interpolator: full 360 Y rotation ----
+DEF SpinInterp OrientationInterpolator {
+  key [ 0, 0.5, 1 ]
+  keyValue [
+    0 1 0  0,
+    0 1 0  3.14159,
+    0 1 0  6.28318
+  ]
+}
+
+# ---- Hold color: blue (rest, frac=0) -> green (held, frac=1) ----
+DEF HoldColor ColorInterpolator {
+  key [ 0, 1 ]
+  keyValue [
+    0.2 0.6 1,
+    0 1 0
+  ]
+}
+
+# ---- Flash timer (triggered by cube click) ----
+DEF FlashTimer TimeSensor {
+  cycleInterval 0.5
+  loop FALSE
+}
+
+# ---- Flash color: yellow -> blue -> yellow ----
+DEF FlashColor ColorInterpolator {
+  key [ 0, 0.5, 1 ]
+  keyValue [
+    1 1 0,
+    0 0 1,
+    1 1 0
+  ]
+}
+
+# ---- ROUTES ----
+
+# Cone click toggles cube spin (click starts, click again stops)
+ROUTE ConeSensor.touchTime TO SpinTimer.startTime
+ROUTE SpinTimer.fraction_changed TO SpinInterp.set_fraction
+ROUTE SpinInterp.value_changed TO CubeGroup.set_rotation
+
+# Cone hold turns cube green (isActive=TRUE -> frac=1 -> green, FALSE -> frac=0 -> blue)
+ROUTE ConeSensor.isActive TO HoldColor.set_fraction
+ROUTE HoldColor.value_changed TO CubeMat.set_diffuseColor
+
+# Cube click flashes cone yellow -> blue -> yellow
+ROUTE CubeSensor.touchTime TO FlashTimer.startTime
+ROUTE FlashTimer.fraction_changed TO FlashColor.set_fraction
+ROUTE FlashColor.value_changed TO ConeMat.set_diffuseColor
+ROUTE FlashColor.value_changed TO ConeMat.set_diffuseColor

@@ -102,6 +102,36 @@ func main() {
 	// Orbit control for mouse interaction
 	camera.NewOrbitControl(cam)
 
+	// Set up mouse picker for sensor interaction
+	picker := traverser.NewPicker(scene, cam)
+	if at.HasSensor {
+		// Subscribe to mouse events for sensor picking
+		a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
+			mev := ev.(*window.MouseEvent)
+			if mev.Button != window.MouseButtonLeft {
+				return
+			}
+			picker.SimTime = br.SimTime()
+			if picker.HandlePointer(mev.Xpos, mev.Ypos, traverser.PointerDown) {
+				fmt.Fprintf(os.Stderr, "Pick hit at (%.0f, %.0f)\n", mev.Xpos, mev.Ypos)
+			}
+		})
+		a.Subscribe(window.OnMouseUp, func(evname string, ev interface{}) {
+			mev := ev.(*window.MouseEvent)
+			if mev.Button != window.MouseButtonLeft {
+				return
+			}
+			picker.SimTime = br.SimTime()
+			picker.HandlePointer(mev.Xpos, mev.Ypos, traverser.PointerUp)
+		})
+		a.Subscribe(window.OnCursor, func(evname string, ev interface{}) {
+			cev := ev.(*window.CursorEvent)
+			picker.SimTime = br.SimTime()
+			picker.HandlePointer(cev.Xpos, cev.Ypos, traverser.PointerMove)
+		})
+		fmt.Fprintf(os.Stderr, "Mouse picking enabled for sensor interaction\n")
+	}
+
 	// Add default lighting if no lights in the scene
 	nav := converter.GetNavigationInfo(vrmlNodes)
 	headlight := nav == nil || nav.Headlight // default is true per VRML97
@@ -138,6 +168,9 @@ func main() {
 		fbW, fbH := a.GetFramebufferSize()
 		a.Gls().Viewport(0, 0, int32(fbW), int32(fbH))
 		cam.SetAspect(float32(fbW) / float32(fbH))
+		// Picker uses window coordinates (mouse events), not framebuffer size
+		wW, wH := a.GetSize()
+		picker.SetSize(wW, wH)
 	}
 	a.Subscribe(window.OnWindowSize, onResize)
 	onResize("", nil)

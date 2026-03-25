@@ -53,6 +53,10 @@ type Browser struct {
 	TimeSensors  []*node.TimeSensor
 	startTime    time.Time // wall-clock origin for VRML time
 	simTime      float64   // current simulation time in seconds
+
+	// Route change-detection: only fire when source value changes.
+	// Keyed by route index. VRML97 routes are event-driven.
+	routePrev []any
 }
 
 // NewBrowser creates a browser with default settings.
@@ -321,13 +325,29 @@ func (b *Browser) updateTimeSensors() {
 }
 
 // processRoutes dispatches all routes, propagating field values.
+// VRML97 routes are event-driven: only fire when the source value changes.
 func (b *Browser) processRoutes() {
-	for _, r := range b.Routes {
-		val := getField(r.Source, r.SrcField)
-		if val != nil {
-			setField(r.Destination, r.DstField, val)
-		}
+	if len(b.routePrev) != len(b.Routes) {
+		b.routePrev = make([]any, len(b.Routes))
 	}
+	for i, r := range b.Routes {
+		val := getField(r.Source, r.SrcField)
+		if val == nil {
+			continue
+		}
+		if routeValueEqual(val, b.routePrev[i]) {
+			continue // no change, skip
+		}
+		b.routePrev[i] = val
+		setField(r.Destination, r.DstField, val)
+	}
+}
+
+// routeValueEqual compares two route values for equality.
+// Handles non-comparable types (slices) by always treating them as changed.
+func routeValueEqual(a, b any) bool {
+	defer func() { recover() }()
+	return a == b
 }
 
 // getField reads a named field from a VRML node.
@@ -344,6 +364,12 @@ func getField(n node.Node, field string) any {
 		case *node.ProximitySensor:
 			return v.IsActive
 		case *node.TouchSensor:
+			return v.IsActive
+		case *node.PlaneSensor:
+			return v.IsActive
+		case *node.SphereSensor:
+			return v.IsActive
+		case *node.CylinderSensor:
 			return v.IsActive
 		}
 	case node.ValueChangedStr:
@@ -387,6 +413,17 @@ func getField(n node.Node, field string) any {
 	case node.HitNormalStr:
 		if ts, ok := n.(*node.TouchSensor); ok {
 			return ts.HitNormal
+		}
+	case node.RotationChangedStr:
+		switch v := n.(type) {
+		case *node.SphereSensor:
+			return v.Rotation
+		case *node.CylinderSensor:
+			return v.Rotation
+		}
+	case node.TranslationChangedStr:
+		if ps, ok := n.(*node.PlaneSensor); ok {
+			return ps.Translation
 		}
 	}
 	return nil
@@ -460,6 +497,35 @@ func setField(n node.Node, field string, val any) {
 				m.Transparency = v
 			}
 		}
+	case node.StartTimeStr:
+		if ts, ok := n.(*node.TimeSensor); ok {
+			if v, ok := toFloat64(val); ok {
+				if ts.IsActive && ts.Loop {
+					// Toggle: stop a running looping timer
+					ts.StopTime = v
+				} else {
+					ts.StartTime = v
+					ts.StopTime = 0 // reset so timer can start
+				}
+			}
+		}
+	case node.EnabledStr, node.SetEnabledStr:
+		if b, ok := val.(bool); ok {
+			switch s := n.(type) {
+			case *node.TimeSensor:
+				s.Enabled = b
+			case *node.TouchSensor:
+				s.Enabled = b
+			case *node.ProximitySensor:
+				s.Enabled = b
+			case *node.PlaneSensor:
+				s.Enabled = b
+			case *node.SphereSensor:
+				s.Enabled = b
+			case *node.CylinderSensor:
+				s.Enabled = b
+			}
+		}
 	}
 }
 
@@ -493,6 +559,26 @@ func toFloat32(val any) (float32, bool) {
 		return v, true
 	case float64:
 		return float32(v), true
+	case bool:
+		if v {
+			return 1.0, true
+		}
+		return 0.0, true
+	}
+	return 0, false
+}
+
+func toFloat64(val any) (float64, bool) {
+	switch v := val.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case bool:
+		if v {
+			return 1.0, true
+		}
+		return 0.0, true
 	}
 	return 0, false
 }

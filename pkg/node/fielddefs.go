@@ -154,6 +154,7 @@ const (
 	SetPositionStr       = "set_position"
 	SetOrientationStr    = "set_orientation"
 	SetDiffuseColorStr   = "set_diffuseColor"
+	SetEnabledStr        = "set_enabled"
 	VectorStr            = "vector"
 	VisibilityLimitStr   = "visibilityLimit"
 	VisibilityRangeStr   = "visibilityRange"
