@@ -33,8 +33,16 @@ func Kvfs(s *Solid) {
 	s.nVerts = 0
 }
 
-// Lmev splits a half-edge, creating a new vertex and edge (Low Make Edge Vertex).
-// he is the half-edge to split; the new vertex is placed at loc.
+// insertBefore inserts nhe immediately before he in the circular half-edge ring.
+func insertBefore(he, nhe *HalfEdge) {
+	nhe.Next = he
+	nhe.Prev = he.Prev
+	he.Prev.Next = nhe
+	he.Prev = nhe
+}
+
+// Lmev creates a new vertex and edge at a half-edge (Low Make Edge Vertex).
+// Ported from vraniml/src/solid/eulerops.cpp lmev (he1==he2 case).
 func Lmev(he *HalfEdge, loc vec.SFVec3f) (*Vertex, *Edge) {
 	s := he.GetFace().Solid
 	nv := NewVertexVec(loc)
@@ -43,40 +51,29 @@ func Lmev(he *HalfEdge, loc vec.SFVec3f) (*Vertex, *Edge) {
 	ne := NewEdge()
 	s.AddEdge(ne)
 
-	// Create the mate half-edge
-	nhe := NewHalfEdge(he.Loop, nv)
-	nv.He = nhe
+	if he.Edge == nil {
+		// First edge from bare Mvfs vertex: reuse he for He2, create new for He1.
+		ne.He2 = he
+		he.Edge = ne
 
-	// Insert new half-edge before he in the loop
-	nhe.Next = he
-	nhe.Prev = he.Prev
-	he.Prev.Next = nhe
-	he.Prev = nhe
-	nhe.Loop = he.Loop
-
-	// Also insert a mate in the mate loop if the edge has a mate
-	mate := he.GetMate()
-	if mate != nil {
-		nhe2 := NewHalfEdge(mate.Loop, he.Vertex)
-		nhe2.Next = mate.Next
-		nhe2.Prev = mate
-		mate.Next.Prev = nhe2
-		mate.Next = nhe2
-		nhe2.Loop = mate.Loop
-
-		// Set up the edge connectivity
+		nhe := &HalfEdge{Vertex: nv, Edge: ne, Loop: he.Loop}
 		ne.He1 = nhe
-		ne.He2 = nhe2
-		nhe.Edge = ne
-		nhe2.Edge = ne
+		insertBefore(he, nhe)
 
-		// The old half-edge now points to the new vertex
-		he.Vertex = nv
+		nv.He = nhe
+		he.Vertex.He = he
 	} else {
-		ne.He1 = nhe
-		ne.He2 = nhe
-		nhe.Edge = ne
-		he.Vertex = nv
+		// Subsequent edges: create two new half-edges before he.
+		nhe2 := &HalfEdge{Vertex: he.Vertex, Edge: ne, Loop: he.Loop}
+		ne.He2 = nhe2
+		insertBefore(he, nhe2)
+
+		nhe1 := &HalfEdge{Vertex: nv, Edge: ne, Loop: he.Loop}
+		ne.He1 = nhe1
+		insertBefore(he, nhe1)
+
+		nv.He = nhe1
+		he.Vertex.He = he
 	}
 
 	return nv, ne
@@ -85,55 +82,46 @@ func Lmev(he *HalfEdge, loc vec.SFVec3f) (*Vertex, *Edge) {
 // Lmef creates a new edge and face by splitting a loop (Low Make Edge Face).
 // he1 and he2 are half-edges in the same loop; a new edge connects their vertices,
 // splitting the loop into two faces.
+// Ported from vraniml/src/solid/eulerops.cpp lmef.
 func Lmef(he1, he2 *HalfEdge) (*Face, *Edge) {
 	old := he1.GetFace()
 	s := old.Solid
 
-	// Create new face and edge
 	nf := NewFace(s, old.GetColor(vec.White))
 	s.AddFace(nf)
 	ne := NewEdge()
 	s.AddEdge(ne)
-
-	// Create new loop for the new face
 	nl := NewLoop(nf, true)
 
-	// Create two new half-edges
-	nhe1 := NewHalfEdge(he1.Loop, he2.Vertex)
-	nhe2 := NewHalfEdge(nl, he1.Vertex)
-
-	ne.He1 = nhe1
-	ne.He2 = nhe2
-	nhe1.Edge = ne
-	nhe2.Edge = ne
-
-	// Rearrange the loop: he1..he2 stays in old loop, he2..he1 goes to new loop
-	// Insert nhe1 before he1
-	nhe1.Next = he1
-	nhe1.Prev = he2.Prev
-	he2.Prev.Next = nhe1
-	he1.Prev = nhe1
-	nhe1.Loop = he1.Loop
-
-	// Build new loop: nhe2 before he2, ending at nhe1
-	nhe2.Next = he2
-	nhe2.Prev = he1.Prev
-	if he1.Prev != nhe1 {
-		he1.Prev = nhe2 // this might be wrong, just link the chain
-	}
-	he2.Prev = nhe2
-	nhe2.Loop = nl
-	nl.HalfEdges = nhe2
-
-	// Reassign loop pointers
-	he := nhe2.Next
-	for he != nhe2 {
+	// Step 1: Walk from he1 to he2, reassigning to the new loop.
+	for he := he1; he != he2; he = he.Next {
 		he.Loop = nl
-		he = he.Next
 	}
 
-	// Fix old loop head
-	he1.Loop.SetFirstHe(nhe1)
+	// Step 2: Insert two new half-edges into the ring (before splitting).
+	// nhe1 goes before he1 (which is now in nl).
+	nhe1 := &HalfEdge{Vertex: he2.Vertex, Edge: ne, Loop: he1.Loop}
+	ne.He2 = nhe1
+	nhe1.Edge = ne
+	insertBefore(he1, nhe1)
+
+	// nhe2 goes before he2 (which stays in the old loop).
+	nhe2 := &HalfEdge{Vertex: he1.Vertex, Edge: ne, Loop: he2.Loop}
+	ne.He1 = nhe2
+	nhe2.Edge = ne
+	insertBefore(he2, nhe2)
+
+	// Step 3: Split the ring by swapping prev/next connections.
+	nhe1.Prev.Next = nhe2
+	nhe2.Prev.Next = nhe1
+
+	temp := nhe2.Prev
+	nhe2.Prev = nhe1.Prev
+	nhe1.Prev = temp
+
+	// Step 4: Set loop heads.
+	he2.Loop.SetFirstHe(nhe2) // old loop
+	nl.SetFirstHe(nhe1)       // new loop
 
 	return nf, ne
 }
