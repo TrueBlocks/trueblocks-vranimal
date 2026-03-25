@@ -1,5 +1,5 @@
 INSTALL_DIR = $(HOME)/source
-BINARIES = vrml-fmt vrml-validate
+BINARIES = vrml-fmt vrml-validate vrml-serialize
 CGO_BINARIES = viewer
 CGO_CFLAGS = -I/opt/homebrew/include
 CGO_LDFLAGS = -L/opt/homebrew/lib
