@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"math"
 	"time"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
@@ -46,16 +47,24 @@ type Browser struct {
 	NavInfoStack    []*node.NavigationInfo
 	BackgroundStack []*node.Background
 	FogStack        []*node.Fog
+
+	// Event engine
+	Routes       []*node.Route
+	TimeSensors  []*node.TimeSensor
+	startTime    time.Time // wall-clock origin for VRML time
+	simTime      float64   // current simulation time in seconds
 }
 
 // NewBrowser creates a browser with default settings.
 func NewBrowser() *Browser {
 	fps := 30
+	now := time.Now()
 	return &Browser{
 		Transform:    *node.NewTransform(),
 		FramesPerSec: fps,
 		FrameRate:    time.Second / time.Duration(fps),
-		LastFrame:    time.Now(),
+		LastFrame:    now,
+		startTime:    now,
 	}
 }
 
@@ -189,11 +198,9 @@ func (b *Browser) GetFog() *node.Fog {
 // ---------------------------------------------------------------------------
 
 // AddRoute creates and registers a route between two nodes.
-func (b *Browser) AddRoute(src node.Node, srcField int32, dst node.Node, dstField int32) *node.Route {
+func (b *Browser) AddRoute(src node.Node, srcField string, dst node.Node, dstField string) *node.Route {
 	r := node.NewRoute(src, srcField, dst, dstField)
-	if bn, ok := src.(*node.BaseNode); ok {
-		bn.AddRoute(r)
-	}
+	b.Routes = append(b.Routes, r)
 	return r
 }
 
@@ -205,21 +212,369 @@ func (b *Browser) Clear() {
 	b.BackgroundStack = nil
 	b.FogStack = nil
 	b.PickedObject = nil
+	b.Routes = nil
+	b.TimeSensors = nil
 }
 
-// Tick advances the simulation by one frame, processing events and traversals.
+// Update advances the simulation clock and processes all events for one frame.
+// Call this from the render loop with the elapsed time since last frame.
+func (b *Browser) Update(dt time.Duration) {
+	b.simTime = time.Since(b.startTime).Seconds()
+	b.updateTimeSensors()
+	b.processRoutes()
+}
+
+// Tick advances the simulation by one frame (rate-limited).
 func (b *Browser) Tick() {
 	now := time.Now()
 	if now.Sub(b.LastFrame) < b.FrameRate {
 		return
 	}
+	dt := now.Sub(b.LastFrame)
 	b.LastFrame = now
+	b.Update(dt)
 
 	for _, t := range b.Traversers {
 		t.PreTraverse()
 		b.traverseScene(t)
 		t.PostTraverse()
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Event engine
+// ---------------------------------------------------------------------------
+
+// CollectTimeSensors walks the scene graph and gathers all TimeSensor nodes.
+func (b *Browser) CollectTimeSensors() {
+	b.TimeSensors = nil
+	collectTimeSensors(b.Children, &b.TimeSensors)
+}
+
+func collectTimeSensors(nodes []node.Node, out *[]*node.TimeSensor) {
+	for _, n := range nodes {
+		switch v := n.(type) {
+		case *node.TimeSensor:
+			*out = append(*out, v)
+		case *node.Transform:
+			collectTimeSensors(v.Children, out)
+		case *node.Group:
+			collectTimeSensors(v.Children, out)
+		case *node.GroupingNode:
+			collectTimeSensors(v.Children, out)
+		}
+	}
+}
+
+// updateTimeSensors ticks all TimeSensors, computing fraction and isActive.
+func (b *Browser) updateTimeSensors() {
+	now := b.simTime
+	for _, ts := range b.TimeSensors {
+		if !ts.Enabled {
+			continue
+		}
+		start := ts.StartTime
+		stop := ts.StopTime
+		interval := ts.CycleInterval
+		if interval <= 0 {
+			interval = 1.0
+		}
+
+		// Not yet started
+		if now < start {
+			continue
+		}
+
+		// Stopped
+		if stop > start && now >= stop {
+			if ts.IsActive {
+				ts.IsActive = false
+				ts.Fraction = 1.0
+				ts.Time = now
+			}
+			continue
+		}
+
+		elapsed := now - start
+		if ts.Loop {
+			ts.Fraction = float32(elapsed/interval - math.Floor(elapsed/interval))
+			ts.IsActive = true
+			ts.CycleTime = start + math.Floor(elapsed/interval)*interval
+		} else {
+			if elapsed >= interval {
+				if ts.IsActive {
+					ts.Fraction = 1.0
+					ts.IsActive = false
+				}
+				continue
+			}
+			ts.Fraction = float32(elapsed / interval)
+			ts.IsActive = true
+		}
+		ts.Time = now
+	}
+}
+
+// processRoutes dispatches all routes, propagating field values.
+func (b *Browser) processRoutes() {
+	for _, r := range b.Routes {
+		val := getField(r.Source, r.SrcField)
+		if val != nil {
+			setField(r.Destination, r.DstField, val)
+		}
+	}
+}
+
+// getField reads a named field from a VRML node.
+func getField(n node.Node, field string) any {
+	switch field {
+	case node.FractionStr: // "fraction_changed"
+		if ts, ok := n.(*node.TimeSensor); ok {
+			return ts.Fraction
+		}
+	case node.IsActiveStr: // "isActive"
+		if ts, ok := n.(*node.TimeSensor); ok {
+			return ts.IsActive
+		}
+	case node.ValueChangedStr:
+		return getInterpolatorValue(n)
+	case node.CycleTimeStr:
+		if ts, ok := n.(*node.TimeSensor); ok {
+			return ts.CycleTime
+		}
+	case node.TimeStr:
+		if ts, ok := n.(*node.TimeSensor); ok {
+			return ts.Time
+		}
+	}
+	return nil
+}
+
+// getInterpolatorValue returns the current output of an interpolator.
+func getInterpolatorValue(n node.Node) any {
+	switch v := n.(type) {
+	case *node.PositionInterpolator:
+		return v.Value
+	case *node.OrientationInterpolator:
+		return v.Value
+	case *node.ColorInterpolator:
+		return v.Value
+	case *node.ScalarInterpolator:
+		return v.Value
+	case *node.CoordinateInterpolator:
+		return v.Value
+	case *node.NormalInterpolator:
+		return v.Value
+	}
+	return nil
+}
+
+// setField writes a value to a named field on a VRML node, triggering evaluation.
+func setField(n node.Node, field string, val any) {
+	switch field {
+	case node.SetFractionStr: // "set_fraction"
+		if frac, ok := toFloat32(val); ok {
+			setInterpolatorFraction(n, frac)
+		}
+	case node.TranslationStr, node.SetTranslationStr:
+		if t, ok := n.(*node.Transform); ok {
+			if v, ok := val.(vec.SFVec3f); ok {
+				t.Translation = v
+			}
+		}
+	case node.RotationStr, node.SetRotationStr:
+		if t, ok := n.(*node.Transform); ok {
+			if v, ok := val.(vec.SFRotation); ok {
+				t.Rotation = v
+			}
+		}
+	case node.ScaleStr, node.SetScaleStr:
+		if t, ok := n.(*node.Transform); ok {
+			if v, ok := val.(vec.SFVec3f); ok {
+				t.Scale = v
+			}
+		}
+	case node.PositionStr, node.SetPositionStr:
+		if vp, ok := n.(*node.Viewpoint); ok {
+			if v, ok := val.(vec.SFVec3f); ok {
+				vp.Position = v
+			}
+		}
+	case node.OrientationStr, node.SetOrientationStr:
+		if vp, ok := n.(*node.Viewpoint); ok {
+			if v, ok := val.(vec.SFRotation); ok {
+				vp.Orientation = v
+			}
+		}
+	case node.DiffuseColorStr, node.SetDiffuseColorStr:
+		if m, ok := n.(*node.Material); ok {
+			if v, ok := val.(vec.SFColor); ok {
+				m.DiffuseColor = v
+			}
+		}
+	case node.TransparencyStr:
+		if m, ok := n.(*node.Material); ok {
+			if v, ok := toFloat32(val); ok {
+				m.Transparency = v
+			}
+		}
+	}
+}
+
+// setInterpolatorFraction sets the fraction and evaluates an interpolator.
+func setInterpolatorFraction(n node.Node, frac float32) {
+	switch v := n.(type) {
+	case *node.PositionInterpolator:
+		v.Fraction = frac
+		v.Value = evalPositionInterp(v.Key, v.KeyValue, frac)
+	case *node.OrientationInterpolator:
+		v.Fraction = frac
+		v.Value = evalOrientationInterp(v.Key, v.KeyValue, frac)
+	case *node.ColorInterpolator:
+		v.Fraction = frac
+		v.Value = evalColorInterp(v.Key, v.KeyValue, frac)
+	case *node.ScalarInterpolator:
+		v.Fraction = frac
+		v.Value = evalScalarInterp(v.Key, v.KeyValue, frac)
+	case *node.CoordinateInterpolator:
+		v.Fraction = frac
+		v.Value = evalCoordinateInterp(v.Key, v.KeyValue, frac)
+	case *node.NormalInterpolator:
+		v.Fraction = frac
+		v.Value = evalCoordinateInterp(v.Key, v.KeyValue, frac)
+	}
+}
+
+func toFloat32(val any) (float32, bool) {
+	switch v := val.(type) {
+	case float32:
+		return v, true
+	case float64:
+		return float32(v), true
+	}
+	return 0, false
+}
+
+// ---------------------------------------------------------------------------
+// Interpolation functions
+// ---------------------------------------------------------------------------
+
+// findKeySegment returns the segment index and local t for a given fraction.
+func findKeySegment(keys []float32, frac float32) (int, float32) {
+	if len(keys) == 0 {
+		return 0, 0
+	}
+	if frac <= keys[0] {
+		return 0, 0
+	}
+	if frac >= keys[len(keys)-1] {
+		return len(keys) - 2, 1
+	}
+	for i := 1; i < len(keys); i++ {
+		if frac <= keys[i] {
+			span := keys[i] - keys[i-1]
+			if span <= 0 {
+				return i - 1, 0
+			}
+			t := (frac - keys[i-1]) / span
+			return i - 1, t
+		}
+	}
+	return len(keys) - 2, 1
+}
+
+func evalPositionInterp(keys []float32, values []vec.SFVec3f, frac float32) vec.SFVec3f {
+	if len(values) == 0 {
+		return vec.SFVec3f{}
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	seg, t := findKeySegment(keys, frac)
+	if seg >= len(values)-1 {
+		return values[len(values)-1]
+	}
+	a, b := values[seg], values[seg+1]
+	return vec.SFVec3f{
+		X: a.X + (b.X-a.X)*t,
+		Y: a.Y + (b.Y-a.Y)*t,
+		Z: a.Z + (b.Z-a.Z)*t,
+	}
+}
+
+func evalColorInterp(keys []float32, values []vec.SFColor, frac float32) vec.SFColor {
+	if len(values) == 0 {
+		return vec.SFColor{}
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	seg, t := findKeySegment(keys, frac)
+	if seg >= len(values)-1 {
+		return values[len(values)-1]
+	}
+	a, b := values[seg], values[seg+1]
+	return vec.SFColor{
+		R: a.R + (b.R-a.R)*t,
+		G: a.G + (b.G-a.G)*t,
+		B: a.B + (b.B-a.B)*t,
+	}
+}
+
+func evalScalarInterp(keys []float32, values []float32, frac float32) float32 {
+	if len(values) == 0 {
+		return 0
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	seg, t := findKeySegment(keys, frac)
+	if seg >= len(values)-1 {
+		return values[len(values)-1]
+	}
+	return values[seg] + (values[seg+1]-values[seg])*t
+}
+
+func evalOrientationInterp(keys []float32, values []vec.SFRotation, frac float32) vec.SFRotation {
+	if len(values) == 0 {
+		return vec.SFRotation{}
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	seg, t := findKeySegment(keys, frac)
+	if seg >= len(values)-1 {
+		return values[len(values)-1]
+	}
+	return vec.SlerpRotation(values[seg], values[seg+1], t)
+}
+
+func evalCoordinateInterp(keys []float32, values []vec.SFVec3f, frac float32) []vec.SFVec3f {
+	if len(values) == 0 || len(keys) == 0 {
+		return nil
+	}
+	nPerKey := len(values) / len(keys)
+	if nPerKey == 0 {
+		return nil
+	}
+	seg, t := findKeySegment(keys, frac)
+	if seg >= len(keys)-1 {
+		seg = len(keys) - 2
+	}
+	out := make([]vec.SFVec3f, nPerKey)
+	baseA := seg * nPerKey
+	baseB := (seg + 1) * nPerKey
+	for i := 0; i < nPerKey; i++ {
+		if baseA+i < len(values) && baseB+i < len(values) {
+			a, b := values[baseA+i], values[baseB+i]
+			out[i] = vec.SFVec3f{
+				X: a.X + (b.X-a.X)*t,
+				Y: a.Y + (b.Y-a.Y)*t,
+				Z: a.Z + (b.Z-a.Z)*t,
+			}
+		}
+	}
+	return out
 }
 
 func (b *Browser) traverseScene(t Traverser) {

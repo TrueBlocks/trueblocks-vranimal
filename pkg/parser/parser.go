@@ -319,7 +319,7 @@ func isIdentStart(ch byte) bool {
 }
 
 func isIdentPart(ch byte) bool {
-	return isIdentStart(ch) || (ch >= '0' && ch <= '9') || ch == '-' || ch == '.'
+	return isIdentStart(ch) || (ch >= '0' && ch <= '9') || ch == '-' || ch == '+'
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +334,12 @@ type Parser struct {
 	errors     []string
 	baseDir    string
 	urlFetcher func(url string) (io.ReadCloser, error)
+	routes     []*node.Route
+	// Temp storage for interpolator keyValue parsing
+	lastMFVec3f    []vec.SFVec3f
+	lastMFRotation []vec.SFRotation
+	lastMFColor    []vec.SFColor
+	lastMFFloat    []float32
 }
 
 // NewParser creates a parser from an io.Reader.
@@ -427,25 +433,42 @@ func (p *Parser) parseUSE() node.Node {
 
 func (p *Parser) parseROUTE() {
 	p.lex.Next() // consume ROUTE
-	// ROUTE nodeName.field TO nodeName.field
-	p.skipDottedName()
+	// ROUTE srcNode.srcField TO dstNode.dstField
+	srcName, srcField := p.parseDottedPair()
 	if p.lex.Peek() == TokTO {
 		p.lex.Next() // consume TO
 	}
-	p.skipDottedName()
+	dstName, dstField := p.parseDottedPair()
+
+	srcNode, srcOK := p.defTable[srcName]
+	dstNode, dstOK := p.defTable[dstName]
+	if srcOK && dstOK {
+		r := node.NewRoute(srcNode, srcField, dstNode, dstField)
+		p.routes = append(p.routes, r)
+	}
 }
 
-// skipDottedName consumes identifier(.identifier)* sequences.
-func (p *Parser) skipDottedName() {
+// parseDottedPair consumes "nodeName.fieldName" and returns both parts.
+func (p *Parser) parseDottedPair() (string, string) {
+	nodeName := ""
+	fieldName := ""
 	if p.lex.Peek() == TokIdentifier {
 		p.lex.Next()
+		nodeName = p.lex.StrVal()
 	}
-	for p.lex.Peek() == TokPeriod {
+	if p.lex.Peek() == TokPeriod {
 		p.lex.Next() // consume '.'
 		if p.lex.Peek() == TokIdentifier {
 			p.lex.Next()
+			fieldName = p.lex.StrVal()
 		}
 	}
+	return nodeName, fieldName
+}
+
+// GetRoutes returns all ROUTE statements parsed from the file.
+func (p *Parser) GetRoutes() []*node.Route {
+	return p.routes
 }
 
 func (p *Parser) parsePROTO() {
@@ -703,6 +726,42 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parseBillboardField(v, fieldName)
 	case *node.Collision:
 		p.parseCollisionField(v, fieldName)
+	case *node.TimeSensor:
+		p.parseTimeSensorField(v, fieldName)
+	case *node.PositionInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFVec3f
+		}
+	case *node.OrientationInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFRotation
+		}
+	case *node.ColorInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFColor
+		}
+	case *node.ScalarInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFFloat
+		}
+	case *node.CoordinateInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFVec3f
+		}
+	case *node.NormalInterpolator:
+		p.parseInterpolatorField(&v.Interpolator, fieldName)
+		if fieldName == "keyValue" {
+			v.KeyValue = p.lastMFVec3f
+		}
+	case *node.TouchSensor:
+		p.parseTouchSensorField(v, fieldName)
+	case *node.ProximitySensor:
+		p.parseProximitySensorField(v, fieldName)
 	default:
 		p.skipFieldValue()
 	}
@@ -1237,6 +1296,113 @@ func (p *Parser) parseChildren(g *node.GroupingNode) {
 		if child != nil {
 			g.AddChild(child)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Animation node field parsers
+// ---------------------------------------------------------------------------
+
+func (p *Parser) parseTimeSensorField(ts *node.TimeSensor, field string) {
+	switch field {
+	case "cycleInterval":
+		ts.CycleInterval = float64(p.parseFloat())
+	case "loop":
+		ts.Loop = p.parseBool()
+	case "startTime":
+		ts.StartTime = float64(p.parseFloat())
+	case "stopTime":
+		ts.StopTime = float64(p.parseFloat())
+	case "enabled":
+		ts.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseInterpolatorField(interp *node.Interpolator, field string) {
+	switch field {
+	case "key":
+		interp.Key = p.parseMFFloat()
+	case "keyValue":
+		// keyValue type depends on interpolator type; dispatch stores result
+		// in lastMF* fields which the caller reads.
+		p.parseInterpolatorKeyValue()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseInterpolatorKeyValue() {
+	// We don't know the type here, so we try parsing as the most general form.
+	// The caller (in parseFieldValue switch) reads the appropriate lastMF* field.
+	// We peek at the structure: [ x y z, ... ] vs [ x y z w, ... ] etc.
+	// Strategy: parse all floats, then the caller picks the right lastMF* field
+	// based on its type. We store in ALL lastMF* fields that might apply.
+	p.lastMFVec3f = nil
+	p.lastMFRotation = nil
+	p.lastMFColor = nil
+	p.lastMFFloat = nil
+
+	var floats []float32
+	if p.lex.Peek() == TokOpenBracket {
+		p.lex.Next()
+		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {
+			if p.lex.Peek() == TokComma {
+				p.lex.Next()
+				continue
+			}
+			floats = append(floats, p.parseFloat())
+		}
+		p.lex.Next()
+	} else {
+		floats = append(floats, p.parseFloat())
+	}
+
+	// Store as float array
+	p.lastMFFloat = floats
+
+	// Store as Vec3f array (groups of 3)
+	if len(floats) >= 3 {
+		for i := 0; i+2 < len(floats); i += 3 {
+			p.lastMFVec3f = append(p.lastMFVec3f, vec.SFVec3f{X: floats[i], Y: floats[i+1], Z: floats[i+2]})
+		}
+	}
+
+	// Store as Color array (groups of 3)
+	if len(floats) >= 3 {
+		for i := 0; i+2 < len(floats); i += 3 {
+			p.lastMFColor = append(p.lastMFColor, vec.SFColor{R: floats[i], G: floats[i+1], B: floats[i+2]})
+		}
+	}
+
+	// Store as Rotation array (groups of 4)
+	if len(floats) >= 4 {
+		for i := 0; i+3 < len(floats); i += 4 {
+			p.lastMFRotation = append(p.lastMFRotation, vec.SFRotation{X: floats[i], Y: floats[i+1], Z: floats[i+2], W: floats[i+3]})
+		}
+	}
+}
+
+func (p *Parser) parseTouchSensorField(ts *node.TouchSensor, field string) {
+	switch field {
+	case "enabled":
+		ts.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseProximitySensorField(ps *node.ProximitySensor, field string) {
+	switch field {
+	case "center":
+		ps.Center = p.parseVec3f()
+	case "size":
+		ps.Size = p.parseVec3f()
+	case "enabled":
+		ps.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
 	}
 }
 

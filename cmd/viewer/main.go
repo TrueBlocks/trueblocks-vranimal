@@ -17,6 +17,7 @@ import (
 	"github.com/g3n/engine/util/helper"
 	"github.com/g3n/engine/window"
 
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/browser"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
@@ -62,8 +63,19 @@ func main() {
 	a := app.App()
 	scene := core.NewNode()
 
-	// Convert VRML scene to g3n
-	converter.Convert(vrmlNodes, scene, baseDir)
+	// Convert VRML scene to g3n (returns node map for animation)
+	nodeMap := converter.Convert(vrmlNodes, scene, baseDir)
+
+	// Set up browser event engine
+	br := browser.NewBrowser()
+	br.Children = vrmlNodes
+	br.Routes = p.GetRoutes()
+	br.CollectTimeSensors()
+
+	if len(br.TimeSensors) > 0 || len(br.Routes) > 0 {
+		fmt.Fprintf(os.Stderr, "Event engine: %d TimeSensors, %d routes\n",
+			len(br.TimeSensors), len(br.Routes))
+	}
 
 	// Set up camera from VRML Viewpoint if available
 	cam := camera.New(1)
@@ -124,6 +136,10 @@ func main() {
 
 	// Render loop
 	a.Run(func(rend *renderer.Renderer, deltaTime time.Duration) {
+		// Process VRML events (TimeSensors, routes, interpolators)
+		br.Update(deltaTime)
+		nodeMap.UpdateDynamic()
+
 		a.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
 		_ = rend.Render(scene, cam)
 	})

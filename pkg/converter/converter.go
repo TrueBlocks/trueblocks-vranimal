@@ -22,20 +22,35 @@ import (
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
-// Convert walks the VRML scene graph and adds corresponding g3n objects
-// to the given g3n parent node.
-func Convert(vrmlNodes []node.Node, parent *core.Node, baseDir string) {
-	for _, n := range vrmlNodes {
-		convertNode(n, parent, baseDir)
+// NodeMap tracks correspondences between VRML nodes and their g3n counterparts.
+// Used by the event engine to update g3n nodes when VRML fields change.
+type NodeMap struct {
+	Transforms map[*node.Transform]*core.Node
+}
+
+// NewNodeMap creates an empty node mapping.
+func NewNodeMap() *NodeMap {
+	return &NodeMap{
+		Transforms: make(map[*node.Transform]*core.Node),
 	}
 }
 
-func convertNode(n node.Node, parent *core.Node, baseDir string) {
+// Convert walks the VRML scene graph and adds corresponding g3n objects
+// to the given g3n parent node. Returns a NodeMap for animation updates.
+func Convert(vrmlNodes []node.Node, parent *core.Node, baseDir string) *NodeMap {
+	nm := NewNodeMap()
+	for _, n := range vrmlNodes {
+		convertNode(n, parent, baseDir, nm)
+	}
+	return nm
+}
+
+func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 	switch v := n.(type) {
 	case *node.Transform:
-		convertTransform(v, parent, baseDir)
+		convertTransform(v, parent, baseDir, nm)
 	case *node.Group:
-		convertGroup(&v.GroupingNode, parent, baseDir)
+		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Shape:
 		convertShape(v, parent, baseDir)
 	case *node.DirectionalLight:
@@ -45,17 +60,17 @@ func convertNode(n node.Node, parent *core.Node, baseDir string) {
 	case *node.SpotLight:
 		convertSpotLight(v, parent)
 	case *node.Anchor:
-		convertGroup(&v.GroupingNode, parent, baseDir)
+		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Billboard:
-		convertGroup(&v.GroupingNode, parent, baseDir)
+		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Collision:
-		convertGroup(&v.GroupingNode, parent, baseDir)
+		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Switch:
-		convertSwitch(v, parent, baseDir)
+		convertSwitch(v, parent, baseDir, nm)
 	case *node.LOD:
-		convertLOD(v, parent, baseDir)
+		convertLOD(v, parent, baseDir, nm)
 	case *node.Inline:
-		convertGroup(&v.GroupingNode, parent, baseDir)
+		convertGroup(&v.GroupingNode, parent, baseDir, nm)
 	case *node.Viewpoint:
 		// handled by viewer main
 	case *node.Background:
@@ -65,7 +80,22 @@ func convertNode(n node.Node, parent *core.Node, baseDir string) {
 	}
 }
 
-func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
+// UpdateDynamic syncs changed VRML transform fields to their g3n counterparts.
+func (nm *NodeMap) UpdateDynamic() {
+	for vrmlT, g3nNode := range nm.Transforms {
+		g3nNode.SetPosition(vrmlT.Translation.X, vrmlT.Translation.Y, vrmlT.Translation.Z)
+		if vrmlT.Rotation.W != 0 {
+			axis := math32.Vector3{X: vrmlT.Rotation.X, Y: vrmlT.Rotation.Y, Z: vrmlT.Rotation.Z}
+			axis.Normalize()
+			q := math32.NewQuaternion(0, 0, 0, 1)
+			q.SetFromAxisAngle(&axis, vrmlT.Rotation.W)
+			g3nNode.SetQuaternionQuat(q)
+		}
+		g3nNode.SetScale(vrmlT.Scale.X, vrmlT.Scale.Y, vrmlT.Scale.Z)
+	}
+}
+
+func convertTransform(t *node.Transform, parent *core.Node, baseDir string, nm *NodeMap) {
 	gn := core.NewNode()
 	gn.SetName(t.GetName())
 
@@ -93,6 +123,9 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
 	gn.SetScale(t.Scale.X, t.Scale.Y, t.Scale.Z)
 	parent.Add(gn)
 
+	// Register for dynamic updates
+	nm.Transforms[t] = gn
+
 	childParent := gn
 	if hasCenter {
 		inner := core.NewNode()
@@ -102,16 +135,16 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string) {
 	}
 
 	for _, child := range t.Children {
-		convertNode(child, childParent, baseDir)
+		convertNode(child, childParent, baseDir, nm)
 	}
 }
 
-func convertGroup(g *node.GroupingNode, parent *core.Node, baseDir string) {
+func convertGroup(g *node.GroupingNode, parent *core.Node, baseDir string, nm *NodeMap) {
 	gn := core.NewNode()
 	gn.SetName(g.GetName())
 	parent.Add(gn)
 	for _, child := range g.Children {
-		convertNode(child, gn, baseDir)
+		convertNode(child, gn, baseDir, nm)
 	}
 }
 
@@ -472,15 +505,15 @@ func convertSpotLight(sl *node.SpotLight, parent *core.Node) {
 	parent.Add(l)
 }
 
-func convertSwitch(sw *node.Switch, parent *core.Node, baseDir string) {
+func convertSwitch(sw *node.Switch, parent *core.Node, baseDir string, nm *NodeMap) {
 	if sw.WhichChoice >= 0 && int(sw.WhichChoice) < len(sw.Choice) {
-		convertNode(sw.Choice[sw.WhichChoice], parent, baseDir)
+		convertNode(sw.Choice[sw.WhichChoice], parent, baseDir, nm)
 	}
 }
 
-func convertLOD(lod *node.LOD, parent *core.Node, baseDir string) {
+func convertLOD(lod *node.LOD, parent *core.Node, baseDir string, nm *NodeMap) {
 	if len(lod.Level) > 0 {
-		convertNode(lod.Level[0], parent, baseDir)
+		convertNode(lod.Level[0], parent, baseDir, nm)
 	}
 }
 

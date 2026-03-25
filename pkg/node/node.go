@@ -68,24 +68,24 @@ func (n *BaseNode) HasRoutes() bool { return len(n.Routes) > 0 }
 
 // Route connects an output field on a source to an input on a destination.
 type Route struct {
-	Source      Node
-	SrcFieldID  int32
+	Source   Node
+	SrcField string
 	Destination Node
-	DstFieldID  int32
-	Internal    bool
-	RouteID     int32
+	DstField string
+	Internal bool
+	RouteID  int32
 }
 
 var nextRouteID int32
 
 // NewRoute creates a route between two node fields.
-func NewRoute(src Node, srcField int32, dst Node, dstField int32) *Route {
+func NewRoute(src Node, srcField string, dst Node, dstField string) *Route {
 	nextRouteID++
 	return &Route{
 		Source:      src,
-		SrcFieldID:  srcField,
+		SrcField:    srcField,
 		Destination: dst,
-		DstFieldID:  dstField,
+		DstField:    dstField,
 		RouteID:     nextRouteID,
 	}
 }

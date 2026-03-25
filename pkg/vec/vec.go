@@ -270,6 +270,71 @@ func (r SFRotation) String() string {
 	return fmt.Sprintf("%g %g %g %g", r.X, r.Y, r.Z, r.W)
 }
 
+// SlerpRotation interpolates between two axis-angle rotations using quaternion slerp.
+func SlerpRotation(a, b SFRotation, t float32) SFRotation {
+	// Convert axis-angle to quaternion
+	q1 := axisAngleToQuat(a)
+	q2 := axisAngleToQuat(b)
+
+	// Slerp in quaternion space
+	dot := q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3]
+	if dot < 0 {
+		q2 = [4]float64{-q2[0], -q2[1], -q2[2], -q2[3]}
+		dot = -dot
+	}
+	if dot > 0.9995 {
+		// Linear interpolation for nearly identical quaternions
+		for i := range q1 {
+			q1[i] = q1[i] + float64(t)*(q2[i]-q1[i])
+		}
+	} else {
+		theta := math.Acos(dot)
+		sinTheta := math.Sin(theta)
+		w1 := math.Sin(float64(1-t)*theta) / sinTheta
+		w2 := math.Sin(float64(t)*theta) / sinTheta
+		for i := range q1 {
+			q1[i] = w1*q1[i] + w2*q2[i]
+		}
+	}
+
+	// Normalize and convert back to axis-angle
+	return quatToAxisAngle(q1)
+}
+
+func axisAngleToQuat(r SFRotation) [4]float64 {
+	half := float64(r.W) / 2
+	s := math.Sin(half)
+	axis := SFVec3f{r.X, r.Y, r.Z}.Normalize()
+	return [4]float64{
+		float64(axis.X) * s,
+		float64(axis.Y) * s,
+		float64(axis.Z) * s,
+		math.Cos(half),
+	}
+}
+
+func quatToAxisAngle(q [4]float64) SFRotation {
+	// Normalize quaternion
+	n := math.Sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3])
+	if n > 0 {
+		q[0] /= n
+		q[1] /= n
+		q[2] /= n
+		q[3] /= n
+	}
+	angle := 2 * math.Acos(math.Max(-1, math.Min(1, q[3])))
+	s := math.Sqrt(1 - q[3]*q[3])
+	if s < 1e-8 {
+		return SFRotation{0, 1, 0, float32(angle)}
+	}
+	return SFRotation{
+		X: float32(q[0] / s),
+		Y: float32(q[1] / s),
+		Z: float32(q[2] / s),
+		W: float32(angle),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // SFImage — pixel image data
 // ---------------------------------------------------------------------------
