@@ -73,10 +73,10 @@ type Route struct {
 	Destination Node
 	DstField string
 	Internal bool
-	RouteID  int32
+	RouteID  int64
 }
 
-var nextRouteID int32
+var nextRouteID int64
 
 // NewRoute creates a route between two node fields.
 func NewRoute(src Node, srcField string, dst Node, dstField string) *Route {
@@ -97,7 +97,7 @@ func NewRoute(src Node, srcField string, dst Node, dstField string) *Route {
 // Event carries a field value from one node to another.
 type Event struct {
 	Destination Node
-	FieldID     int32
+	FieldID     int64
 	Value       any
 }
 
@@ -145,12 +145,12 @@ type Appearance struct {
 // Material defines surface shading properties.
 type Material struct {
 	BaseNode
-	AmbientIntensity float32
+	AmbientIntensity float64
 	DiffuseColor     vec.SFColor
 	EmissiveColor    vec.SFColor
-	Shininess        float32
+	Shininess        float64
 	SpecularColor    vec.SFColor
-	Transparency     float32
+	Transparency     float64
 }
 
 // NewMaterial creates a material with VRML97 defaults.
@@ -190,7 +190,7 @@ type MovieTexture struct {
 	URL       []string
 	OrigURL   []string
 	Loop      bool
-	Speed     float32
+	Speed     float64
 	StartTime float64
 	StopTime  float64
 	RepeatS   bool
@@ -221,7 +221,7 @@ func NewPixelTexture() *PixelTexture {
 type TextureTransform struct {
 	BaseNode
 	Center      vec.SFVec2f
-	Rotation    float32
+	Rotation    float64
 	Scale       vec.SFVec2f
 	Translation vec.SFVec2f
 }
@@ -241,8 +241,8 @@ type FontStyle struct {
 	Justify     []string
 	Language    string
 	LeftToRight bool
-	Size        float32
-	Spacing     float32
+	Size        float64
+	Spacing     float64
 	Style       string
 	TopToBottom bool
 }
@@ -275,9 +275,9 @@ type Bindable struct {
 // Background defines the scene skybox/ground colors and images.
 type Background struct {
 	Bindable
-	GroundAngle []float32
+	GroundAngle []float64
 	GroundColor []vec.SFColor
-	SkyAngle    []float32
+	SkyAngle    []float64
 	SkyColor    []vec.SFColor
 	BackURL     []string
 	BottomURL   []string
@@ -292,7 +292,7 @@ type Fog struct {
 	Bindable
 	Color           vec.SFColor
 	FogType         string
-	VisibilityRange float32
+	VisibilityRange float64
 }
 
 // NewFog creates a fog node with defaults.
@@ -306,17 +306,17 @@ func NewFog() *Fog {
 // NavigationInfo configures navigation behavior.
 type NavigationInfo struct {
 	Bindable
-	AvatarSize      []float32
+	AvatarSize      []float64
 	Headlight       bool
-	Speed           float32
+	Speed           float64
 	Type            []string
-	VisibilityLimit float32
+	VisibilityLimit float64
 }
 
 // NewNavigationInfo creates a navigation info with VRML97 defaults.
 func NewNavigationInfo() *NavigationInfo {
 	return &NavigationInfo{
-		AvatarSize: []float32{0.25},
+		AvatarSize: []float64{0.25},
 		Headlight:  true,
 		Speed:      1.0,
 		Type:       []string{"WALK"},
@@ -327,7 +327,7 @@ func NewNavigationInfo() *NavigationInfo {
 type Viewpoint struct {
 	Bindable
 	Description string
-	FieldOfView float32
+	FieldOfView float64
 	Jump        bool
 	Orientation vec.SFRotation
 	Position    vec.SFVec3f
@@ -337,7 +337,7 @@ type Viewpoint struct {
 // NewViewpoint creates a viewpoint with VRML97 defaults.
 func NewViewpoint() *Viewpoint {
 	return &Viewpoint{
-		FieldOfView: float32(math.Pi / 4),
+		FieldOfView: float64(math.Pi / 4),
 		Jump:        true,
 		Orientation: vec.SFRotation{X: 0, Y: 1, Z: 0, W: 0},
 		Position:    vec.SFVec3f{X: 0, Y: 0, Z: 10},
@@ -360,10 +360,10 @@ type Light struct {
 	BaseNode
 	On               bool
 	Color            vec.SFColor
-	Intensity        float32
-	AmbientIntensity float32
+	Intensity        float64
+	AmbientIntensity float64
 	Attenuation      vec.SFVec3f
-	LightID          int32
+	LightID          int64
 }
 
 func newLight() Light {
@@ -394,7 +394,7 @@ func NewDirectionalLight() *DirectionalLight {
 type PointLight struct {
 	Light
 	Location vec.SFVec3f
-	Radius   float32
+	Radius   float64
 }
 
 // NewPointLight creates a point light with defaults.
@@ -408,19 +408,19 @@ func NewPointLight() *PointLight {
 // SpotLight emits a cone of light.
 type SpotLight struct {
 	Light
-	BeamWidth   float32
-	CutOffAngle float32
+	BeamWidth   float64
+	CutOffAngle float64
 	Direction   vec.SFVec3f
 	Location    vec.SFVec3f
-	Radius      float32
+	Radius      float64
 }
 
 // NewSpotLight creates a spot light with defaults.
 func NewSpotLight() *SpotLight {
 	return &SpotLight{
 		Light:       newLight(),
-		BeamWidth:   float32(math.Pi / 2),
-		CutOffAngle: float32(math.Pi / 4),
+		BeamWidth:   float64(math.Pi / 2),
+		CutOffAngle: float64(math.Pi / 4),
 		Direction:   vec.SFVec3f{X: 0, Y: 0, Z: -1},
 		Radius:      100.0,
 	}
@@ -447,13 +447,13 @@ type Sound struct {
 	BaseNode
 	Spatialize bool
 	Direction  vec.SFVec3f
-	Intensity  float32
+	Intensity  float64
 	Location   vec.SFVec3f
-	MaxBack    float32
-	MaxFront   float32
-	MinBack    float32
-	MinFront   float32
-	Priority   float32
+	MaxBack    float64
+	MaxFront   float64
+	MinBack    float64
+	MinFront   float64
+	Priority   float64
 	Source     *AudioClip
 }
 
@@ -477,7 +477,7 @@ type AudioClip struct {
 	OrigURL     []string
 	Description string
 	Loop        bool
-	Pitch       float32
+	Pitch       float64
 	StartTime   float64
 	StopTime    float64
 	Duration    float64
@@ -580,9 +580,9 @@ type Inline struct {
 type LOD struct {
 	BaseNode
 	Center      vec.SFVec3f
-	Range       []float32
+	Range       []float64
 	Level       []Node
-	ActiveLevel int32
+	ActiveLevel int64
 }
 
 // NewLOD creates a LOD with defaults.
@@ -594,7 +594,7 @@ func NewLOD() *LOD {
 type Switch struct {
 	BaseNode
 	Choice      []Node
-	WhichChoice int32
+	WhichChoice int64
 }
 
 // NewSwitch creates a switch with defaults.
@@ -617,7 +617,7 @@ type BaseGeometry struct {
 	BaseNode
 	Ccw         bool
 	Convex      bool
-	CreaseAngle float32
+	CreaseAngle float64
 	IsSolid     bool
 	Geom        *solid.Solid
 	Native      bool
@@ -650,9 +650,9 @@ func NewBox() *Box {
 // Sphere represents a sphere centered at the origin.
 type Sphere struct {
 	BaseGeometry
-	Radius float32
-	Slices int32
-	Stacks int32
+	Radius float64
+	Slices int64
+	Stacks int64
 }
 
 // NewSphere creates a sphere with defaults.
@@ -668,8 +668,8 @@ func NewSphere() *Sphere {
 // Cone represents a cone.
 type Cone struct {
 	BaseGeometry
-	BottomRadius float32
-	Height       float32
+	BottomRadius float64
+	Height       float64
 	Side         bool
 	Bottom       bool
 }
@@ -689,8 +689,8 @@ func NewCone() *Cone {
 type Cylinder struct {
 	BaseGeometry
 	Bottom bool
-	Height float32
-	Radius float32
+	Height float64
+	Radius float64
 	Side   bool
 	Top    bool
 }
@@ -736,8 +736,8 @@ type Text struct {
 	BaseGeometry
 	String    []string
 	FontStyle *FontStyle
-	Length    []float32
-	MaxExtent float32
+	Length    []float64
+	MaxExtent float64
 }
 
 // ---------------------------------------------------------------------------
@@ -749,10 +749,10 @@ type DataSet struct {
 	BaseGeometry
 	ColorPerVertex  bool
 	NormalPerVertex bool
-	ColorIndex      []int32
-	CoordIndex      []int32
-	NormalIndex     []int32
-	TexCoordIndex   []int32
+	ColorIndex      []int64
+	CoordIndex      []int64
+	NormalIndex     []int64
+	TexCoordIndex   []int64
 	Color           *ColorNode
 	Coord           *Coordinate
 	Normal          *NormalNode
@@ -800,11 +800,11 @@ func NewPointSet() *PointSet {
 // ElevationGrid builds terrain from a height field.
 type ElevationGrid struct {
 	DataSet
-	Heights    []float32
-	XDimension int32
-	XSpacing   float32
-	ZDimension int32
-	ZSpacing   float32
+	Heights    []float64
+	XDimension int64
+	XSpacing   float64
+	ZDimension int64
+	ZSpacing   float64
 }
 
 // NewElevationGrid creates an elevation grid with defaults.
@@ -847,7 +847,7 @@ type TextureCoordinate struct {
 // Interpolator is the base for animation interpolation.
 type Interpolator struct {
 	BaseNode
-	Key []float32
+	Key []float64
 }
 
 // ColorInterpolator interpolates between color values.
@@ -855,7 +855,7 @@ type ColorInterpolator struct {
 	Interpolator
 	KeyValue []vec.SFColor
 	Value    vec.SFColor
-	Fraction float32
+	Fraction float64
 }
 
 // PositionInterpolator interpolates between 3D positions.
@@ -863,7 +863,7 @@ type PositionInterpolator struct {
 	Interpolator
 	KeyValue []vec.SFVec3f
 	Value    vec.SFVec3f
-	Fraction float32
+	Fraction float64
 }
 
 // OrientationInterpolator interpolates between rotations.
@@ -871,15 +871,15 @@ type OrientationInterpolator struct {
 	Interpolator
 	KeyValue []vec.SFRotation
 	Value    vec.SFRotation
-	Fraction float32
+	Fraction float64
 }
 
 // ScalarInterpolator interpolates between float values.
 type ScalarInterpolator struct {
 	Interpolator
-	KeyValue []float32
-	Value    float32
-	Fraction float32
+	KeyValue []float64
+	Value    float64
+	Fraction float64
 }
 
 // CoordinateInterpolator interpolates between sets of coordinates.
@@ -887,7 +887,7 @@ type CoordinateInterpolator struct {
 	Interpolator
 	KeyValue []vec.SFVec3f
 	Value    []vec.SFVec3f
-	Fraction float32
+	Fraction float64
 }
 
 // NormalInterpolator interpolates between sets of normals.
@@ -895,7 +895,7 @@ type NormalInterpolator struct {
 	Interpolator
 	KeyValue []vec.SFVec3f
 	Value    []vec.SFVec3f
-	Fraction float32
+	Fraction float64
 }
 
 // ---------------------------------------------------------------------------
@@ -951,7 +951,7 @@ type TimeSensor struct {
 	StartTime     float64
 	StopTime      float64
 	CycleTime     float64
-	Fraction      float32
+	Fraction      float64
 	Time          float64
 }
 
@@ -982,10 +982,10 @@ func NewProximitySensor() *ProximitySensor {
 // CylinderSensor maps mouse motion to a rotation about an axis.
 type CylinderSensor struct {
 	PointingDeviceSensor
-	Offset    float32
-	DiskAngle float32
-	MaxAngle  float32
-	MinAngle  float32
+	Offset    float64
+	DiskAngle float64
+	MaxAngle  float64
+	MinAngle  float64
 	Rotation  vec.SFRotation
 }
 

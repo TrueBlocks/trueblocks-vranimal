@@ -306,7 +306,7 @@ func (b *Browser) updateTimeSensors() {
 
 		elapsed := now - start
 		if ts.Loop {
-			ts.Fraction = float32(elapsed/interval - math.Floor(elapsed/interval))
+			ts.Fraction = float64(elapsed/interval - math.Floor(elapsed/interval))
 			ts.IsActive = true
 			ts.CycleTime = start + math.Floor(elapsed/interval)*interval
 		} else {
@@ -317,7 +317,7 @@ func (b *Browser) updateTimeSensors() {
 				}
 				continue
 			}
-			ts.Fraction = float32(elapsed / interval)
+			ts.Fraction = float64(elapsed / interval)
 			ts.IsActive = true
 		}
 		ts.Time = now
@@ -536,7 +536,7 @@ func setField(n node.Node, field string, val any) {
 }
 
 // setInterpolatorFraction sets the fraction and evaluates an interpolator.
-func setInterpolatorFraction(n node.Node, frac float32) {
+func setInterpolatorFraction(n node.Node, frac float64) {
 	switch v := n.(type) {
 	case *node.PositionInterpolator:
 		v.Fraction = frac
@@ -559,12 +559,10 @@ func setInterpolatorFraction(n node.Node, frac float32) {
 	}
 }
 
-func toFloat32(val any) (float32, bool) {
+func toFloat32(val any) (float64, bool) {
 	switch v := val.(type) {
-	case float32:
-		return v, true
 	case float64:
-		return float32(v), true
+		return v, true
 	case bool:
 		if v {
 			return 1.0, true
@@ -578,8 +576,6 @@ func toFloat64(val any) (float64, bool) {
 	switch v := val.(type) {
 	case float64:
 		return v, true
-	case float32:
-		return float64(v), true
 	case bool:
 		if v {
 			return 1.0, true
@@ -589,14 +585,12 @@ func toFloat64(val any) (float64, bool) {
 	return 0, false
 }
 
-func toInt32(val any) (int32, bool) {
+func toInt32(val any) (int64, bool) {
 	switch v := val.(type) {
-	case int32:
-		return v, true
-	case float32:
-		return int32(v), true
 	case float64:
-		return int32(v), true
+		return int64(v), true
+	case int64:
+		return v, true
 	}
 	return 0, false
 }
@@ -606,7 +600,7 @@ func toInt32(val any) (int32, bool) {
 // ---------------------------------------------------------------------------
 
 // findKeySegment returns the segment index and local t for a given fraction.
-func findKeySegment(keys []float32, frac float32) (int, float32) {
+func findKeySegment(keys []float64, frac float64) (int, float64) {
 	if len(keys) == 0 {
 		return 0, 0
 	}
@@ -629,7 +623,7 @@ func findKeySegment(keys []float32, frac float32) (int, float32) {
 	return len(keys) - 2, 1
 }
 
-func evalPositionInterp(keys []float32, values []vec.SFVec3f, frac float32) vec.SFVec3f {
+func evalPositionInterp(keys []float64, values []vec.SFVec3f, frac float64) vec.SFVec3f {
 	if len(values) == 0 {
 		return vec.SFVec3f{}
 	}
@@ -648,7 +642,7 @@ func evalPositionInterp(keys []float32, values []vec.SFVec3f, frac float32) vec.
 	}
 }
 
-func evalColorInterp(keys []float32, values []vec.SFColor, frac float32) vec.SFColor {
+func evalColorInterp(keys []float64, values []vec.SFColor, frac float64) vec.SFColor {
 	if len(values) == 0 {
 		return vec.SFColor{}
 	}
@@ -667,7 +661,7 @@ func evalColorInterp(keys []float32, values []vec.SFColor, frac float32) vec.SFC
 	}
 }
 
-func evalScalarInterp(keys []float32, values []float32, frac float32) float32 {
+func evalScalarInterp(keys []float64, values []float64, frac float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -681,7 +675,7 @@ func evalScalarInterp(keys []float32, values []float32, frac float32) float32 {
 	return values[seg] + (values[seg+1]-values[seg])*t
 }
 
-func evalOrientationInterp(keys []float32, values []vec.SFRotation, frac float32) vec.SFRotation {
+func evalOrientationInterp(keys []float64, values []vec.SFRotation, frac float64) vec.SFRotation {
 	if len(values) == 0 {
 		return vec.SFRotation{}
 	}
@@ -695,7 +689,7 @@ func evalOrientationInterp(keys []float32, values []vec.SFRotation, frac float32
 	return vec.SlerpRotation(values[seg], values[seg+1], t)
 }
 
-func evalCoordinateInterp(keys []float32, values []vec.SFVec3f, frac float32) []vec.SFVec3f {
+func evalCoordinateInterp(keys []float64, values []vec.SFVec3f, frac float64) []vec.SFVec3f {
 	if len(values) == 0 || len(keys) == 0 {
 		return nil
 	}

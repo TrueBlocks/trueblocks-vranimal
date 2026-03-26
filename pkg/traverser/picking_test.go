@@ -66,7 +66,7 @@ func TestProjectOntoSphereEdge(t *testing.T) {
 
 func TestClampf(t *testing.T) {
 	tests := []struct {
-		v, min, max, want float32
+		v, min, max, want float64
 	}{
 		{5, 0, 10, 5},
 		{-1, 0, 10, 0},

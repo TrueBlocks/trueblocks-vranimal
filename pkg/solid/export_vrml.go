@@ -35,7 +35,7 @@ func ExportMultiVRML(w io.Writer, solids []*Solid, translations []vec.SFVec3f) e
 		return err
 	}
 	for i, s := range solids {
-		tx, ty, tz := float32(0), float32(0), float32(0)
+		tx, ty, tz := float64(0), float64(0), float64(0)
 		if translations != nil && i < len(translations) {
 			tx = translations[i].X
 			ty = translations[i].Y
@@ -106,7 +106,7 @@ func (s *Solid) exportVRMLShape(w io.Writer, indent string) error {
 	if err := p("Shape {"); err != nil {
 		return err
 	}
-	matR, matG, matB := float32(0.8), float32(0.8), float32(0.8)
+	matR, matG, matB := float64(0.8), float64(0.8), float64(0.8)
 	if len(faces) > 0 {
 		matR, matG, matB = faces[0].color.R, faces[0].color.G, faces[0].color.B
 	}

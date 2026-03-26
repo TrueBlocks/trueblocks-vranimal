@@ -57,7 +57,7 @@ const (
 
 // ColorData holds per-vertex or per-face color, normal, and texture coordinate data.
 type ColorData struct {
-	Type     int32
+	Type     int64
 	Color    vec.SFColor
 	Normal   vec.SFVec3f
 	TexCoord vec.SFVec2f
@@ -108,7 +108,7 @@ type HalfEdge struct {
 	Vertex *Vertex
 	Edge   *Edge
 	Loop   *Loop
-	Mark   uint32
+	Mark   uint64
 	Data   *ColorData
 	Next   *HalfEdge
 	Prev   *HalfEdge
@@ -172,7 +172,7 @@ func (he *HalfEdge) GetMateVertex() *Vertex {
 }
 
 // GetIndex returns the index of the destination vertex.
-func (he *HalfEdge) GetIndex() uint32 {
+func (he *HalfEdge) GetIndex() uint64 {
 	if he.Vertex == nil {
 		return 0
 	}
@@ -246,7 +246,7 @@ func (he *HalfEdge) GetTexCoord(def vec.SFVec2f) vec.SFVec2f {
 }
 
 // GetMateIndex returns the vertex index of the mate half-edge.
-func (he *HalfEdge) GetMateIndex() uint32 {
+func (he *HalfEdge) GetMateIndex() uint64 {
 	m := he.GetMate()
 	if m == nil {
 		return 0
@@ -407,7 +407,7 @@ func (l *Loop) ForEachHe(fn func(*HalfEdge) bool) {
 }
 
 // Area calculates the signed area of the loop polygon.
-func (l *Loop) Area() float32 {
+func (l *Loop) Area() float64 {
 	if l.HalfEdges == nil {
 		return 0
 	}
@@ -483,9 +483,9 @@ func (l *Loop) GetVertexLocations(locs []vec.SFVec3f) int {
 type Vertex struct {
 	Loc     vec.SFVec3f
 	He      *HalfEdge // One half-edge starting at this vertex
-	Index   uint32
-	Mark    uint32
-	Scratch float32
+	Index   uint64
+	Mark    uint64
+	Scratch float64
 	Data    *ColorData
 	// Intrusive list pointers
 	Next *Vertex
@@ -493,7 +493,7 @@ type Vertex struct {
 }
 
 // NewVertex creates a vertex at the given position.
-func NewVertex(x, y, z float32) *Vertex {
+func NewVertex(x, y, z float64) *Vertex {
 	return &Vertex{
 		Loc: vec.SFVec3f{X: x, Y: y, Z: z},
 	}
@@ -553,7 +553,7 @@ func (v *Vertex) GetTexCoord(def vec.SFVec2f) vec.SFVec2f {
 }
 
 // IsMarked returns true if the vertex mark equals m.
-func (v *Vertex) IsMarked(m uint32) bool { return v.Mark == m }
+func (v *Vertex) IsMarked(m uint64) bool { return v.Mark == m }
 
 // GetValence returns the number of edges incident on this vertex.
 func (v *Vertex) GetValence() int {
@@ -616,7 +616,7 @@ func (v *Vertex) CalcNormal() {
 
 	if crease == nil {
 		// Case 2: no creases — average all face normals
-		normal = normal.Scale(1.0 / float32(nFaces)).Normalize()
+		normal = normal.Scale(1.0 / float64(nFaces)).Normalize()
 		v.SetNormal(normal)
 		return
 	}
@@ -643,7 +643,7 @@ func (v *Vertex) CalcNormal() {
 
 		if he.Edge != nil && he.Edge.Mark&CREASE != 0 {
 			// Concluded a face group — assign averaged normal
-			n := accum.Scale(1.0 / float32(len(heTable))).Normalize()
+			n := accum.Scale(1.0 / float64(len(heTable))).Normalize()
 			for _, h := range heTable {
 				h.SetNormal(n)
 			}
@@ -662,7 +662,7 @@ func (v *Vertex) CalcNormal() {
 	}
 
 	if len(heTable) > 0 {
-		n := accum.Scale(1.0 / float32(len(heTable))).Normalize()
+		n := accum.Scale(1.0 / float64(len(heTable))).Normalize()
 		for _, h := range heTable {
 			h.SetNormal(n)
 		}
@@ -677,8 +677,8 @@ func (v *Vertex) CalcNormal() {
 type Edge struct {
 	He1   *HalfEdge
 	He2   *HalfEdge
-	Index uint32
-	Mark  uint32
+	Index uint64
+	Mark  uint64
 	// Intrusive list pointers
 	Next *Edge
 	Prev *Edge
@@ -711,7 +711,7 @@ func (e *Edge) GetLoop(which int) *Loop {
 }
 
 // Marked returns true if the edge mark equals m.
-func (e *Edge) Marked(m uint32) bool { return e.Mark == m }
+func (e *Edge) Marked(m uint64) bool { return e.Mark == m }
 
 // GetSolid returns the solid this edge belongs to (via He1's face).
 func (e *Edge) GetSolid() *Solid {
@@ -722,7 +722,7 @@ func (e *Edge) GetSolid() *Solid {
 }
 
 // Length returns the length of this edge.
-func (e *Edge) Length() float32 {
+func (e *Edge) Length() float64 {
 	if e.He1 == nil || e.He2 == nil {
 		return 0
 	}
@@ -747,10 +747,10 @@ type Face struct {
 	LoopOut *Loop     // Outer boundary loop
 	Loops   []*Loop   // All loops (outer + holes)
 	Normal  vec.SFVec3f
-	D       float32   // Plane distance
-	Index   uint32
-	Mark1   uint32
-	Mark2   uint32
+	D       float64   // Plane distance
+	Index   uint64
+	Mark1   uint64
+	Mark2   uint64
 	Data    *ColorData
 	// Intrusive list pointers
 	Next *Face
@@ -840,7 +840,7 @@ func (f *Face) GetCenter() vec.SFVec3f {
 	if n == 0 {
 		return vec.SFVec3f{}
 	}
-	return sum.Scale(1 / float32(n))
+	return sum.Scale(1 / float64(n))
 }
 
 // CalcEquation calculates the plane equation (normal + D) using Newell's method.
@@ -877,7 +877,7 @@ func (f *Face) CalcEquationFromLoop(l *Loop) bool {
 }
 
 // GetDistance returns the signed distance from a point to this face's plane.
-func (f *Face) GetDistance(pt vec.SFVec3f) float32 {
+func (f *Face) GetDistance(pt vec.SFVec3f) float64 {
 	return f.Normal.Dot(pt) + f.D
 }
 
@@ -888,7 +888,7 @@ func (f *Face) InvertNormal() {
 }
 
 // Area returns the area of the face's outer loop.
-func (f *Face) Area() float32 {
+func (f *Face) Area() float64 {
 	if f.LoopOut == nil {
 		return 0
 	}
@@ -917,10 +917,10 @@ func (f *Face) Revert() {
 }
 
 // Marked1 returns true if mark1 equals m.
-func (f *Face) Marked1(m uint32) bool { return f.Mark1 == m }
+func (f *Face) Marked1(m uint64) bool { return f.Mark1 == m }
 
 // Marked2 returns true if mark2 equals m.
-func (f *Face) Marked2(m uint32) bool { return f.Mark2 == m }
+func (f *Face) Marked2(m uint64) bool { return f.Mark2 == m }
 
 // GetFirstLoop returns the first loop (outer boundary).
 func (f *Face) GetFirstLoop() *Loop {

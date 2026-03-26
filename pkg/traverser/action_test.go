@@ -93,7 +93,7 @@ func TestProximitySensorEnterExit(t *testing.T) {
 func TestLODDistanceSwitching(t *testing.T) {
 	lod := node.NewLOD()
 	lod.Center = vec.SFVec3f{X: 0, Y: 0, Z: 0}
-	lod.Range = []float32{5, 15, 30}
+	lod.Range = []float64{5, 15, 30}
 	lod.Level = []node.Node{
 		&node.BaseNode{},
 		&node.BaseNode{},

@@ -65,18 +65,18 @@ const (
 
 // HandlePointer processes a mouse event at the given screen coordinates.
 // Returns true if a sensor consumed the event.
-func (p *Picker) HandlePointer(screenX, screenY float32, action PointerAction) bool {
+func (p *Picker) HandlePointer(screenX, screenY float64, action PointerAction) bool {
 	if p.width == 0 || p.height == 0 {
 		return false
 	}
 
 	// Normalize screen coordinates to [-1, +1] range for g3n raycaster.
 	// g3n's SetFromCamera expects normalized device coordinates.
-	nx := (screenX/float32(p.width))*2 - 1
-	ny := -((screenY/float32(p.height))*2 - 1) // Y is inverted
+	nx := (screenX/float64(p.width))*2 - 1
+	ny := -((screenY/float64(p.height))*2 - 1) // Y is inverted
 
 	// Set up raycaster from camera
-	p.raycaster.SetFromCamera(p.cam, nx, ny)
+	p.raycaster.SetFromCamera(p.cam, float32(nx), float32(ny))
 
 	// If we have a captured sensor (drag in progress), handle it
 	if p.captured != nil {
@@ -108,7 +108,7 @@ func (p *Picker) HandlePointer(screenX, screenY float32, action PointerAction) b
 		return false
 	}
 
-	hitPoint := vec.SFVec3f{X: hit.Point.X, Y: hit.Point.Y, Z: hit.Point.Z}
+	hitPoint := vec.SFVec3f{X: float64(hit.Point.X), Y: float64(hit.Point.Y), Z: float64(hit.Point.Z)}
 
 	// Compute a simple hit normal (approximate: direction from object center to hit)
 	hitNormal := approximateNormal(hit)
@@ -194,7 +194,7 @@ func (p *Picker) handleRelease() {
 }
 
 // handleDrag dispatches ongoing drag events to the captured sensor.
-func (p *Picker) handleDrag(nx, ny float32) {
+func (p *Picker) handleDrag(nx, ny float64) {
 	switch s := p.captured.(type) {
 	case *node.PlaneSensor:
 		p.dragPlaneSensor(s, nx, ny)
@@ -221,7 +221,7 @@ func (p *Picker) handlePlaneSensor(ps *node.PlaneSensor, action PointerAction, h
 }
 
 // dragPlaneSensor updates translation during drag.
-func (p *Picker) dragPlaneSensor(ps *node.PlaneSensor, nx, ny float32) {
+func (p *Picker) dragPlaneSensor(ps *node.PlaneSensor, nx, ny float64) {
 	_, _ = nx, ny
 	// Project current mouse pos onto the XY plane at the original hit depth
 	ray := p.raycaster.Ray
@@ -229,15 +229,17 @@ func (p *Picker) dragPlaneSensor(ps *node.PlaneSensor, nx, ny float32) {
 	dir := ray.Direction()
 
 	// Simple projection: use initial Z as the plane distance
-	if dir.Z == 0 {
+	// g3n ray returns float32; convert to float64 for our math.
+	oz, dz := float64(origin.Z), float64(dir.Z)
+	if dz == 0 {
 		return
 	}
-	t := (p.capturedHit.Z - origin.Z) / dir.Z
+	t := (p.capturedHit.Z - oz) / dz
 	if t < 0 {
 		return
 	}
-	worldX := origin.X + dir.X*t
-	worldY := origin.Y + dir.Y*t
+	worldX := float64(origin.X) + float64(dir.X)*t
+	worldY := float64(origin.Y) + float64(dir.Y)*t
 
 	dx := worldX - ps.FirstPoint.X
 	dy := worldY - ps.FirstPoint.Y
@@ -274,7 +276,7 @@ func (p *Picker) handleSphereSensor(ss *node.SphereSensor, action PointerAction,
 }
 
 // dragSphereSensor computes rotation from hemisphere projection.
-func (p *Picker) dragSphereSensor(ss *node.SphereSensor, nx, ny float32) {
+func (p *Picker) dragSphereSensor(ss *node.SphereSensor, nx, ny float64) {
 	// Project both initial and current points onto unit sphere
 	first := projectOntoSphere(p.capturedHit)
 	current := projectOntoSphere(vec.SFVec3f{X: nx, Y: ny, Z: 0})
@@ -285,7 +287,7 @@ func (p *Picker) dragSphereSensor(ss *node.SphereSensor, nx, ny float32) {
 		Y: first.Z*current.X - first.X*current.Z,
 		Z: first.X*current.Y - first.Y*current.X,
 	}
-	axisLen := float32(math.Sqrt(float64(axis.X*axis.X + axis.Y*axis.Y + axis.Z*axis.Z)))
+	axisLen := float64(math.Sqrt(float64(axis.X*axis.X + axis.Y*axis.Y + axis.Z*axis.Z)))
 	if axisLen < 1e-6 {
 		return
 	}
@@ -296,7 +298,7 @@ func (p *Picker) dragSphereSensor(ss *node.SphereSensor, nx, ny float32) {
 	// Dot product gives rotation angle
 	dot := first.X*current.X + first.Y*current.Y + first.Z*current.Z
 	dot = clampf(dot, -1, 1)
-	angle := float32(math.Acos(float64(dot)))
+	angle := float64(math.Acos(float64(dot)))
 
 	ss.Rotation = vec.SFRotation{X: axis.X, Y: axis.Y, Z: axis.Z, W: angle}
 	ss.TrackPoint = vec.SFVec3f{X: nx, Y: ny, Z: 0}
@@ -316,10 +318,10 @@ func (p *Picker) handleCylinderSensor(cs *node.CylinderSensor, action PointerAct
 }
 
 // dragCylinderSensor computes rotation about Y axis from horizontal mouse motion.
-func (p *Picker) dragCylinderSensor(cs *node.CylinderSensor, nx, ny float32) {
+func (p *Picker) dragCylinderSensor(cs *node.CylinderSensor, nx, ny float64) {
 	// Map horizontal mouse displacement to Y-axis rotation
 	dx := nx - p.capturedHit.X
-	angle := cs.Offset + dx*float32(math.Pi)
+	angle := cs.Offset + dx*float64(math.Pi)
 
 	// Clamp if min < max
 	if cs.MinAngle < cs.MaxAngle {
@@ -380,9 +382,9 @@ func findSiblingSensors(children []node.Node) []node.Node {
 func projectOntoSphere(p vec.SFVec3f) vec.SFVec3f {
 	d := p.X*p.X + p.Y*p.Y
 	if d < 1.0 {
-		return vec.SFVec3f{X: p.X, Y: p.Y, Z: float32(math.Sqrt(float64(1.0 - d)))}
+		return vec.SFVec3f{X: p.X, Y: p.Y, Z: float64(math.Sqrt(float64(1.0 - d)))}
 	}
-	s := float32(1.0 / math.Sqrt(float64(d)))
+	s := float64(1.0 / math.Sqrt(float64(d)))
 	return vec.SFVec3f{X: p.X * s, Y: p.Y * s, Z: 0}
 }
 
@@ -398,10 +400,10 @@ func approximateNormal(hit collision.Intersect) vec.SFVec3f {
 		Z: hit.Point.Z - center.Z,
 	}
 	dir.Normalize()
-	return vec.SFVec3f{X: dir.X, Y: dir.Y, Z: dir.Z}
+	return vec.SFVec3f{X: float64(dir.X), Y: float64(dir.Y), Z: float64(dir.Z)}
 }
 
-func clampf(v, min, max float32) float32 {
+func clampf(v, min, max float64) float64 {
 	if v < min {
 		return min
 	}

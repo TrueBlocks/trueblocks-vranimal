@@ -176,7 +176,7 @@ func TestRoundTripIndexedFaceSet(t *testing.T) {
 				},
 				ColorPerVertex:  true,
 				NormalPerVertex: true,
-				CoordIndex:      []int32{0, 1, 2, -1, 2, 3, 0, -1},
+				CoordIndex:      []int64{0, 1, 2, -1, 2, 3, 0, -1},
 				Coord: &node.Coordinate{
 					Point: []vec.SFVec3f{
 						{X: 0, Y: 0, Z: 0},
@@ -228,7 +228,7 @@ func TestRoundTripIndexedFaceSet(t *testing.T) {
 func TestRoundTripInterpolators(t *testing.T) {
 	scene := []node.Node{
 		&node.ColorInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 0.5, 1.0}},
+			Interpolator: node.Interpolator{Key: []float64{0, 0.5, 1.0}},
 			KeyValue: []vec.SFColor{
 				{R: 1, G: 0, B: 0},
 				{R: 0, G: 1, B: 0},
@@ -236,15 +236,15 @@ func TestRoundTripInterpolators(t *testing.T) {
 			},
 		},
 		&node.PositionInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 1}},
+			Interpolator: node.Interpolator{Key: []float64{0, 1}},
 			KeyValue: []vec.SFVec3f{
 				{X: 0, Y: 0, Z: 0},
 				{X: 10, Y: 20, Z: 30},
 			},
 		},
 		&node.ScalarInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 1}},
-			KeyValue:     []float32{0, 100},
+			Interpolator: node.Interpolator{Key: []float64{0, 1}},
+			KeyValue:     []float64{0, 100},
 		},
 	}
 
@@ -338,15 +338,15 @@ func TestRoundTripAllNodeTypes(t *testing.T) {
 		&node.Appearance{Material: node.NewMaterial()},
 		&node.Shape{Geometry: node.NewBox()},
 		&node.OrientationInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 1}},
-			KeyValue:     []vec.SFRotation{{X: 0, Y: 1, Z: 0, W: 0}, {X: 0, Y: 1, Z: 0, W: float32(math.Pi)}},
+			Interpolator: node.Interpolator{Key: []float64{0, 1}},
+			KeyValue:     []vec.SFRotation{{X: 0, Y: 1, Z: 0, W: 0}, {X: 0, Y: 1, Z: 0, W: float64(math.Pi)}},
 		},
 		&node.CoordinateInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 1}},
+			Interpolator: node.Interpolator{Key: []float64{0, 1}},
 			KeyValue:     []vec.SFVec3f{{X: 0}, {X: 1}},
 		},
 		&node.NormalInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0}},
+			Interpolator: node.Interpolator{Key: []float64{0}},
 			KeyValue:     []vec.SFVec3f{{Y: 1}},
 		},
 	}

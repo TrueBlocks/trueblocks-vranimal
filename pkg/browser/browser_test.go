@@ -217,7 +217,7 @@ func TestBrowser_PositionInterpolatorRoute(t *testing.T) {
 	pi := &node.PositionInterpolator{
 		KeyValue: []vec.SFVec3f{{X: 0, Y: 0, Z: 0}, {X: 10, Y: 0, Z: 0}},
 	}
-	pi.Key = []float32{0, 1}
+	pi.Key = []float64{0, 1}
 	tr := node.NewTransform()
 	ts := node.NewTimeSensor()
 	ts.Enabled = true
@@ -243,7 +243,7 @@ func TestBrowser_ColorInterpolatorRoute(t *testing.T) {
 	ci := &node.ColorInterpolator{
 		KeyValue: []vec.SFColor{{R: 1, G: 0, B: 0}, {R: 0, G: 0, B: 1}},
 	}
-	ci.Key = []float32{0, 1}
+	ci.Key = []float64{0, 1}
 	mat := node.NewMaterial()
 	ts := node.NewTimeSensor()
 	ts.Enabled = true
@@ -321,9 +321,9 @@ func TestBrowser_Selection(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestToFloat32(t *testing.T) {
-	v, ok := toFloat32(float32(3.14))
+	v, ok := toFloat32(float64(3.14))
 	if !ok || v != 3.14 {
-		t.Fatalf("float32: %g %v", v, ok)
+		t.Fatalf("float64: %g %v", v, ok)
 	}
 	v, ok = toFloat32(float64(2.71))
 	if !ok {
@@ -348,9 +348,9 @@ func TestToFloat64(t *testing.T) {
 	if !ok || v != 3.14 {
 		t.Fatalf("float64: %g %v", v, ok)
 	}
-	v, ok = toFloat64(float32(2.0))
+	v, ok = toFloat64(float64(2.0))
 	if !ok || v != 2.0 {
-		t.Fatal("float32 should convert")
+		t.Fatal("float64 should convert")
 	}
 	_, ok = toFloat64("bad")
 	if ok {
@@ -359,17 +359,17 @@ func TestToFloat64(t *testing.T) {
 }
 
 func TestToInt32(t *testing.T) {
-	v, ok := toInt32(int32(42))
+	v, ok := toInt32(int64(42))
 	if !ok || v != 42 {
-		t.Fatal("int32")
+		t.Fatal("int64")
 	}
-	v, ok = toInt32(float32(5.0))
+	v, ok = toInt32(float64(5.0))
 	if !ok || v != 5 {
-		t.Fatal("float32 to int32")
+		t.Fatal("float64 to int64")
 	}
 	v, ok = toInt32(float64(7.0))
 	if !ok || v != 7 {
-		t.Fatal("float64 to int32")
+		t.Fatal("float64 to int64")
 	}
 	_, ok = toInt32("bad")
 	if ok {
@@ -382,7 +382,7 @@ func TestToInt32(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFindKeySegment(t *testing.T) {
-	keys := []float32{0, 0.5, 1.0}
+	keys := []float64{0, 0.5, 1.0}
 	seg, lt := findKeySegment(keys, 0)
 	if seg != 0 || lt != 0 {
 		t.Fatalf("at 0: seg=%d t=%g", seg, lt)
@@ -412,7 +412,7 @@ func TestFindKeySegment_Empty(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvalPositionInterp(t *testing.T) {
-	keys := []float32{0, 1}
+	keys := []float64{0, 1}
 	vals := []vec.SFVec3f{{X: 0}, {X: 10}}
 	r := evalPositionInterp(keys, vals, 0.5)
 	if r.X < 4.9 || r.X > 5.1 {
@@ -428,7 +428,7 @@ func TestEvalPositionInterp_Empty(t *testing.T) {
 }
 
 func TestEvalColorInterp(t *testing.T) {
-	keys := []float32{0, 1}
+	keys := []float64{0, 1}
 	vals := []vec.SFColor{{R: 1, G: 0, B: 0}, {R: 0, G: 0, B: 1}}
 	r := evalColorInterp(keys, vals, 0.5)
 	if r.R < 0.49 || r.R > 0.51 {
@@ -440,8 +440,8 @@ func TestEvalColorInterp(t *testing.T) {
 }
 
 func TestEvalScalarInterp(t *testing.T) {
-	keys := []float32{0, 1}
-	vals := []float32{0, 100}
+	keys := []float64{0, 1}
+	vals := []float64{0, 100}
 	r := evalScalarInterp(keys, vals, 0.25)
 	if r < 24.9 || r > 25.1 {
 		t.Fatalf("expected ~25, got %g", r)
@@ -449,7 +449,7 @@ func TestEvalScalarInterp(t *testing.T) {
 }
 
 func TestEvalOrientationInterp(t *testing.T) {
-	keys := []float32{0, 1}
+	keys := []float64{0, 1}
 	vals := []vec.SFRotation{
 		{X: 0, Y: 1, Z: 0, W: 0},
 		{X: 0, Y: 1, Z: 0, W: 3.14159},
@@ -462,7 +462,7 @@ func TestEvalOrientationInterp(t *testing.T) {
 }
 
 func TestEvalCoordinateInterp(t *testing.T) {
-	keys := []float32{0, 1}
+	keys := []float64{0, 1}
 	vals := []vec.SFVec3f{
 		{X: 0, Y: 0, Z: 0},
 		{X: 10, Y: 10, Z: 10},

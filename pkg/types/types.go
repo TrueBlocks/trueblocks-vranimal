@@ -7,15 +7,15 @@ import "math"
 // Basic VRML scalar types.
 type (
 	SFBool  = bool
-	SFInt32 = int32
-	SFFloat = float32
+	SFInt32 = int64
+	SFFloat = float64
 	SFTime  = float64
 )
 
 const Pi = math.Pi
 
 // Clamp returns v clamped to the range [lo, hi].
-func Clamp[T ~int32 | ~float32 | ~float64](v, lo, hi T) T {
+func Clamp[T ~int64 | ~float64](v, lo, hi T) T {
 	if v < lo {
 		return lo
 	}
@@ -26,12 +26,12 @@ func Clamp[T ~int32 | ~float32 | ~float64](v, lo, hi T) T {
 }
 
 // InRange returns true if v is in [lo, hi].
-func InRange[T ~int32 | ~float32 | ~float64](v, lo, hi T) bool {
+func InRange[T ~int64 | ~float64](v, lo, hi T) bool {
 	return v >= lo && v <= hi
 }
 
 // Interpolate returns a + t*(b-a).
-func Interpolate[T ~float32 | ~float64](a, b, t T) T {
+func Interpolate[T ~float64](a, b, t T) T {
 	return a + t*(b-a)
 }
 

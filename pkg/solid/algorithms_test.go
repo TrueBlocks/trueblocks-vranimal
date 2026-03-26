@@ -216,35 +216,35 @@ func TestIntersectsEdgeEdge_DropY(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCrossingsTest_InsideSquare(t *testing.T) {
-	pgon := [][2]float32{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
-	if !CrossingsTest(pgon, [2]float32{5, 5}) {
+	pgon := [][2]float64{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
+	if !CrossingsTest(pgon, [2]float64{5, 5}) {
 		t.Fatal("point should be inside")
 	}
 }
 
 func TestCrossingsTest_OutsideSquare(t *testing.T) {
-	pgon := [][2]float32{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
-	if CrossingsTest(pgon, [2]float32{15, 5}) {
+	pgon := [][2]float64{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
+	if CrossingsTest(pgon, [2]float64{15, 5}) {
 		t.Fatal("point should be outside")
 	}
 }
 
 func TestCrossingsTest_InsideTriangle(t *testing.T) {
-	pgon := [][2]float32{{0, 0}, {10, 0}, {5, 10}}
-	if !CrossingsTest(pgon, [2]float32{5, 3}) {
+	pgon := [][2]float64{{0, 0}, {10, 0}, {5, 10}}
+	if !CrossingsTest(pgon, [2]float64{5, 3}) {
 		t.Fatal("point should be inside triangle")
 	}
 }
 
 func TestCrossingsTest_OutsideTriangle(t *testing.T) {
-	pgon := [][2]float32{{0, 0}, {10, 0}, {5, 10}}
-	if CrossingsTest(pgon, [2]float32{0, 10}) {
+	pgon := [][2]float64{{0, 0}, {10, 0}, {5, 10}}
+	if CrossingsTest(pgon, [2]float64{0, 10}) {
 		t.Fatal("point should be outside triangle")
 	}
 }
 
 func TestCrossingsTest_Empty(t *testing.T) {
-	if CrossingsTest(nil, [2]float32{0, 0}) {
+	if CrossingsTest(nil, [2]float64{0, 0}) {
 		t.Fatal("empty polygon should return false")
 	}
 }
@@ -256,11 +256,11 @@ func TestCrossingsTest_Empty(t *testing.T) {
 func TestLoop_CheckForContainment(t *testing.T) {
 	// Test the crossings algorithm directly via CrossingsTest
 	// since BuildFromIndexSet doesn't produce clean polygon loops for quads
-	pgon := [][2]float32{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
-	if !CrossingsTest(pgon, [2]float32{5, 5}) {
+	pgon := [][2]float64{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
+	if !CrossingsTest(pgon, [2]float64{5, 5}) {
 		t.Fatal("point should be inside")
 	}
-	if CrossingsTest(pgon, [2]float32{15, 5}) {
+	if CrossingsTest(pgon, [2]float64{15, 5}) {
 		t.Fatal("point should be outside")
 	}
 }
@@ -275,7 +275,7 @@ func TestLoop_BoundaryContains_VertexHit(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 10, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -308,7 +308,7 @@ func TestLoop_BoundaryContains_Miss(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 10, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -342,7 +342,7 @@ func TestLoop_Contains(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -376,7 +376,7 @@ func TestFace_FaceContains(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -410,7 +410,7 @@ func TestFace_FaceContains_Outside(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -447,7 +447,7 @@ func TestSolid_SolidContains(t *testing.T) {
 		{X: 10, Y: 10, Z: 0},
 		{X: -10, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	outer := BuildFromIndexSet(positions, indices, vec.Red)
 	if outer == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -512,7 +512,7 @@ func TestSolid_TranslationalSweep(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -544,7 +544,7 @@ func TestSolid_Twist(t *testing.T) {
 	s, _, _ := Mvfs(vec.SFVec3f{X: 1, Y: 0, Z: 1}, vec.Red)
 	Lmev(s.Verts.He, vec.SFVec3f{X: 0, Y: 1, Z: 2})
 
-	s.Twist(func(z float32) float32 { return z * 0.1 })
+	s.Twist(func(z float64) float64 { return z * 0.1 })
 
 	// Just verify it doesn't panic and modifies coordinates
 	for v := s.Verts; v != nil; v = v.Next {
@@ -564,7 +564,7 @@ func TestSolid_CollapseFace(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -585,7 +585,7 @@ func TestFace_RemoveColinearVerts(t *testing.T) {
 		{X: 10, Y: 10, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -608,7 +608,7 @@ func TestSolid_Triangulate(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil for quad")
@@ -648,7 +648,7 @@ func TestSolid_Verify_Triangle(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -667,7 +667,7 @@ func TestSolid_JoinCut(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -688,7 +688,7 @@ func TestSolid_MoveFace(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -738,7 +738,7 @@ func TestSolid_ArcSweep(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -797,17 +797,17 @@ func TestIntersectsEdgeEdge_Coincident(t *testing.T) {
 
 func TestCrossingsTest_Pentagon(t *testing.T) {
 	// Regular pentagon vertices
-	pgon := make([][2]float32, 5)
+	pgon := make([][2]float64, 5)
 	for i := 0; i < 5; i++ {
 		angle := float64(i) * 2 * math.Pi / 5
-		pgon[i] = [2]float32{float32(math.Cos(angle)), float32(math.Sin(angle))}
+		pgon[i] = [2]float64{float64(math.Cos(angle)), float64(math.Sin(angle))}
 	}
 	// Center should be inside
-	if !CrossingsTest(pgon, [2]float32{0, 0}) {
+	if !CrossingsTest(pgon, [2]float64{0, 0}) {
 		t.Fatal("center should be inside pentagon")
 	}
 	// Far point should be outside
-	if CrossingsTest(pgon, [2]float32{10, 10}) {
+	if CrossingsTest(pgon, [2]float64{10, 10}) {
 		t.Fatal("far point should be outside pentagon")
 	}
 }

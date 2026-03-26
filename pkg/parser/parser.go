@@ -339,7 +339,7 @@ type Parser struct {
 	lastMFVec3f    []vec.SFVec3f
 	lastMFRotation []vec.SFRotation
 	lastMFColor    []vec.SFColor
-	lastMFFloat    []float32
+	lastMFFloat    []float64
 }
 
 // NewParser creates a parser from an io.Reader.
@@ -1428,7 +1428,7 @@ func (p *Parser) parseInterpolatorKeyValue() {
 	p.lastMFColor = nil
 	p.lastMFFloat = nil
 
-	var floats []float32
+	var floats []float64
 	if p.lex.Peek() == TokOpenBracket {
 		p.lex.Next()
 		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {
@@ -1494,19 +1494,19 @@ func (p *Parser) parseProximitySensorField(ps *node.ProximitySensor, field strin
 // Primitive value parsers
 // ---------------------------------------------------------------------------
 
-func (p *Parser) parseFloat() float32 {
+func (p *Parser) parseFloat() float64 {
 	tok := p.lex.Next()
 	if tok == TokFloat || tok == TokInt {
-		return float32(p.lex.FloatVal())
+		return float64(p.lex.FloatVal())
 	}
 	p.errorf("expected float, got %v", tok)
 	return 0
 }
 
-func (p *Parser) parseInt32() int32 {
+func (p *Parser) parseInt32() int64 {
 	tok := p.lex.Next()
 	if tok == TokInt || tok == TokFloat {
-		return int32(p.lex.IntVal())
+		return int64(p.lex.IntVal())
 	}
 	p.errorf("expected int, got %v", tok)
 	return 0
@@ -1554,8 +1554,8 @@ func (p *Parser) parseRotation() vec.SFRotation {
 	return vec.SFRotation{X: x, Y: y, Z: z, W: w}
 }
 
-func (p *Parser) parseMFInt32() []int32 {
-	var vals []int32
+func (p *Parser) parseMFInt32() []int64 {
+	var vals []int64
 	if p.lex.Peek() == TokOpenBracket {
 		p.lex.Next()
 		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {
@@ -1572,8 +1572,8 @@ func (p *Parser) parseMFInt32() []int32 {
 	return vals
 }
 
-func (p *Parser) parseMFFloat() []float32 {
-	var vals []float32
+func (p *Parser) parseMFFloat() []float64 {
+	var vals []float64
 	if p.lex.Peek() == TokOpenBracket {
 		p.lex.Next()
 		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {

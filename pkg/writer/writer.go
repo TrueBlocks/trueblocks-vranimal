@@ -270,7 +270,7 @@ func (wr *Writer) writeMFString(name string, vals []string) {
 	wr.line("]")
 }
 
-func (wr *Writer) writeMFFloat(name string, vals []float32) {
+func (wr *Writer) writeMFFloat(name string, vals []float64) {
 	if len(vals) == 0 {
 		return
 	}
@@ -296,7 +296,7 @@ func (wr *Writer) writeMFFloat(name string, vals []float32) {
 	wr.line("]")
 }
 
-func (wr *Writer) writeMFInt32(name string, vals []int32) {
+func (wr *Writer) writeMFInt32(name string, vals []int64) {
 	if len(vals) == 0 {
 		return
 	}

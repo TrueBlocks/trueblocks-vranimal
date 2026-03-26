@@ -22,12 +22,12 @@ type Ray struct {
 func NewRay(loc, dir vec.SFVec3f) Ray { return Ray{Loc: loc, Dir: dir} }
 
 // Evaluate returns the point at parameter t: Loc + t*Dir.
-func (r Ray) Evaluate(t float32) vec.SFVec3f {
+func (r Ray) Evaluate(t float64) vec.SFVec3f {
 	return r.Loc.Add(r.Dir.Scale(t))
 }
 
 // GetDistance returns the distance from Loc to the point at parameter t.
-func (r Ray) GetDistance(t float32) float32 {
+func (r Ray) GetDistance(t float64) float64 {
 	return r.Dir.Scale(t).Length()
 }
 
@@ -63,11 +63,11 @@ func (r Ray) ApplyTransform(m vec.Matrix) Ray {
 // Plane represents a 3D plane as a normal vector and signed distance.
 type Plane struct {
 	Normal vec.SFVec3f
-	D      float32
+	D      float64
 }
 
 // NewPlane creates a plane from a normal and distance.
-func NewPlane(normal vec.SFVec3f, d float32) Plane {
+func NewPlane(normal vec.SFVec3f, d float64) Plane {
 	return Plane{Normal: normal, D: d}
 }
 
@@ -80,13 +80,13 @@ func NewPlaneFromPoints(a, b, c vec.SFVec3f) Plane {
 }
 
 // GetDistance returns the signed distance from a point to the plane.
-func (p Plane) GetDistance(pt vec.SFVec3f) float32 {
+func (p Plane) GetDistance(pt vec.SFVec3f) float64 {
 	return p.Normal.Dot(pt) + p.D
 }
 
 // IntersectRay returns the parameter t where the ray intersects the plane,
 // and whether the intersection is valid (not parallel).
-func (p Plane) IntersectRay(r Ray) (t float32, ok bool) {
+func (p Plane) IntersectRay(r Ray) (t float64, ok bool) {
 	denom := p.Normal.Dot(r.Dir)
 	if denom == 0 {
 		return 0, false
@@ -106,7 +106,7 @@ func (p Plane) IntersectPlane(other Plane) (Ray, bool) {
 	d1 := p.D
 	d2 := other.D
 	n1n2 := p.Normal.Dot(other.Normal)
-	det := float32(1) - n1n2*n1n2
+	det := float64(1) - n1n2*n1n2
 	if det == 0 {
 		return Ray{}, false
 	}
@@ -117,7 +117,7 @@ func (p Plane) IntersectPlane(other Plane) (Ray, bool) {
 }
 
 // XIntercept returns the X coordinate where the plane crosses the X-axis.
-func (p Plane) XIntercept() float32 {
+func (p Plane) XIntercept() float64 {
 	if p.Normal.X == 0 {
 		return 0
 	}
@@ -125,7 +125,7 @@ func (p Plane) XIntercept() float32 {
 }
 
 // YIntercept returns the Y coordinate where the plane crosses the Y-axis.
-func (p Plane) YIntercept() float32 {
+func (p Plane) YIntercept() float64 {
 	if p.Normal.Y == 0 {
 		return 0
 	}
@@ -133,7 +133,7 @@ func (p Plane) YIntercept() float32 {
 }
 
 // ZIntercept returns the Z coordinate where the plane crosses the Z-axis.
-func (p Plane) ZIntercept() float32 {
+func (p Plane) ZIntercept() float64 {
 	if p.Normal.Z == 0 {
 		return 0
 	}
@@ -151,7 +151,7 @@ type BoundingBox struct {
 
 // DefaultBBox returns an "invalid" bounding box (min > max) used as initial state.
 func DefaultBBox() BoundingBox {
-	big := float32(math.MaxFloat32)
+	big := float64(math.MaxFloat32)
 	return BoundingBox{
 		Min: vec.SFVec3f{X: big, Y: big, Z: big},
 		Max: vec.SFVec3f{X: -big, Y: -big, Z: -big},
@@ -214,8 +214,8 @@ func (b BoundingBox) IsInside(pt vec.SFVec3f) bool {
 }
 
 // Intersect tests ray-box intersection, returning (t, hit).
-func (b BoundingBox) Intersect(r Ray) (float32, bool) {
-	var tmin, tmax float32
+func (b BoundingBox) Intersect(r Ray) (float64, bool) {
+	var tmin, tmax float64
 	if r.Dir.X != 0 {
 		tx1 := (b.Min.X - r.Loc.X) / r.Dir.X
 		tx2 := (b.Max.X - r.Loc.X) / r.Dir.X
@@ -228,8 +228,8 @@ func (b BoundingBox) Intersect(r Ray) (float32, bool) {
 		if r.Loc.X < b.Min.X || r.Loc.X > b.Max.X {
 			return 0, false
 		}
-		tmin = float32(-math.MaxFloat32)
-		tmax = float32(math.MaxFloat32)
+		tmin = float64(-math.MaxFloat32)
+		tmax = float64(math.MaxFloat32)
 	}
 	if r.Dir.Y != 0 {
 		ty1 := (b.Min.Y - r.Loc.Y) / r.Dir.Y
@@ -304,7 +304,7 @@ func TransformBox(b BoundingBox, m vec.Matrix) BoundingBox {
 }
 
 // SurfaceArea returns the surface area of the bounding box.
-func (b BoundingBox) SurfaceArea() float32 {
+func (b BoundingBox) SurfaceArea() float64 {
 	s := b.Size()
 	return 2 * (s.X*s.Y + s.Y*s.Z + s.Z*s.X)
 }
@@ -315,8 +315,8 @@ func (b BoundingBox) SurfaceArea() float32 {
 
 // Rect2D represents a 2D screen rectangle.
 type Rect2D struct {
-	X, Y, W, H int32
+	X, Y, W, H int64
 }
 
 // NewRect2D creates a 2D rectangle.
-func NewRect2D(x, y, w, h int32) Rect2D { return Rect2D{x, y, w, h} }
+func NewRect2D(x, y, w, h int64) Rect2D { return Rect2D{x, y, w, h} }

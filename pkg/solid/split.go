@@ -16,11 +16,11 @@ import (
 // Plane represents an oriented plane in 3D space: Normal · P + D = 0.
 type Plane struct {
 	Normal vec.SFVec3f
-	D      float32
+	D      float64
 }
 
 // GetDistance returns the signed distance from point p to the plane.
-func (pl *Plane) GetDistance(p vec.SFVec3f) float32 {
+func (pl *Plane) GetDistance(p vec.SFVec3f) float64 {
 	return pl.Normal.Dot(p) + pl.D
 }
 
@@ -34,10 +34,10 @@ const (
 )
 
 // SetMark sets the half-edge mark.
-func (he *HalfEdge) SetMark(m uint32) { he.Mark = m }
+func (he *HalfEdge) SetMark(m uint64) { he.Mark = m }
 
 // Marked returns true if the half-edge mark equals m.
-func (he *HalfEdge) Marked(m uint32) bool { return he.Mark == m }
+func (he *HalfEdge) Marked(m uint64) bool { return he.Mark == m }
 
 // ---------------------------------------------------------------------------
 // splitNeighborhood — one sector around a vertex being classified.
@@ -95,7 +95,7 @@ func (cr *splitClassifyRecord) getNeighborhood() {
 // dot product of the face normal with the plane normal.
 func (cr *splitClassifyRecord) reclassifyOnSectors() {
 	n := len(cr.nbrs)
-	epsSq := float32(1e-5 * 1e-5)
+	epsSq := float64(1e-5 * 1e-5)
 	spNormal := cr.sp.Normal
 
 	for i := 0; i < n; i++ {
@@ -520,7 +520,8 @@ func (s *Solid) Split(sp Plane) (above, below *Solid, ok bool) {
 const bigEps = 0.00001
 
 // floatCompare returns -1, 0, or 1 comparing f to 0 within tolerance.
-func floatCompare(f, zero float32) int {
+func floatCompare(f, zero float64) int {
+	_ = zero
 	if f < -bigEps {
 		return -1
 	}
@@ -531,7 +532,7 @@ func floatCompare(f, zero float32) int {
 }
 
 // SetFaceMarks2 sets Mark2 on all faces.
-func (s *Solid) SetFaceMarks2(m uint32) {
+func (s *Solid) SetFaceMarks2(m uint64) {
 	for f := s.Faces; f != nil; f = f.Next {
 		f.Mark2 = m
 	}

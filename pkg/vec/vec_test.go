@@ -7,7 +7,7 @@ import (
 
 const eps = 1e-5
 
-func approx(a, b float32) bool {
+func approx(a, b float64) bool {
 	return float64(math.Abs(float64(a-b))) < eps
 }
 
@@ -389,9 +389,9 @@ func TestRotation_String(t *testing.T) {
 
 func TestSlerpRotation_Identity(t *testing.T) {
 	a := NewRotation(0, 1, 0, 0)
-	b := NewRotation(0, 1, 0, float32(math.Pi))
+	b := NewRotation(0, 1, 0, float64(math.Pi))
 	mid := SlerpRotation(a, b, 0.5)
-	if !approx(mid.W, float32(math.Pi/2)) {
+	if !approx(mid.W, float64(math.Pi/2)) {
 		t.Fatalf("expected pi/2, got %g", mid.W)
 	}
 }
@@ -431,7 +431,7 @@ func TestMatrix_Identity(t *testing.T) {
 	m := Identity()
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			want := float32(0)
+			want := float64(0)
 			if i == j {
 				want = 1
 			}
@@ -467,7 +467,7 @@ func TestMatrix_TranslationDirection(t *testing.T) {
 }
 
 func TestMatrix_Rotation(t *testing.T) {
-	m := RotationMatrix(NewRotation(0, 0, 1, float32(math.Pi/2)))
+	m := RotationMatrix(NewRotation(0, 0, 1, float64(math.Pi/2)))
 	p := m.TransformPoint(SFVec3f{1, 0, 0})
 	if !approx(p.X, 0) || !approx(p.Y, 1) || !approx(p.Z, 0) {
 		t.Fatalf("got %v", p)
@@ -512,7 +512,7 @@ func TestMatrix_Invert_Identity(t *testing.T) {
 	inv := Identity().Invert()
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			want := float32(0)
+			want := float64(0)
 			if i == j {
 				want = 1
 			}
@@ -538,7 +538,7 @@ func TestMatrix_Invert_Roundtrip(t *testing.T) {
 	prod := m.Mul(inv)
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			want := float32(0)
+			want := float64(0)
 			if i == j {
 				want = 1
 			}

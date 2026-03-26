@@ -11,13 +11,13 @@ import (
 // SFVec2f — 2D vector
 // ---------------------------------------------------------------------------
 
-// SFVec2f is a 2-component float32 vector.
+// SFVec2f is a 2-component float64 vector.
 type SFVec2f struct {
-	X, Y float32
+	X, Y float64
 }
 
 // NewVec2f creates a 2D vector.
-func NewVec2f(x, y float32) SFVec2f { return SFVec2f{x, y} }
+func NewVec2f(x, y float64) SFVec2f { return SFVec2f{x, y} }
 
 // Add returns the component-wise sum of two vectors.
 func (v SFVec2f) Add(o SFVec2f) SFVec2f { return SFVec2f{v.X + o.X, v.Y + o.Y} }
@@ -26,13 +26,13 @@ func (v SFVec2f) Add(o SFVec2f) SFVec2f { return SFVec2f{v.X + o.X, v.Y + o.Y} }
 func (v SFVec2f) Sub(o SFVec2f) SFVec2f { return SFVec2f{v.X - o.X, v.Y - o.Y} }
 
 // Scale returns the vector scaled by s.
-func (v SFVec2f) Scale(s float32) SFVec2f { return SFVec2f{v.X * s, v.Y * s} }
+func (v SFVec2f) Scale(s float64) SFVec2f { return SFVec2f{v.X * s, v.Y * s} }
 
 // Dot returns the dot product.
-func (v SFVec2f) Dot(o SFVec2f) float32 { return v.X*o.X + v.Y*o.Y }
+func (v SFVec2f) Dot(o SFVec2f) float64 { return v.X*o.X + v.Y*o.Y }
 
 // Length returns the Euclidean length.
-func (v SFVec2f) Length() float32 { return float32(math.Sqrt(float64(v.Dot(v)))) }
+func (v SFVec2f) Length() float64 { return float64(math.Sqrt(float64(v.Dot(v)))) }
 
 // Normalize returns the unit-length vector.
 func (v SFVec2f) Normalize() SFVec2f {
@@ -50,7 +50,7 @@ func (v SFVec2f) Eq(o SFVec2f) bool { return v.X == o.X && v.Y == o.Y }
 func (v SFVec2f) Negate() SFVec2f { return SFVec2f{-v.X, -v.Y} }
 
 // Index returns the i-th component (0=X, 1=Y).
-func (v SFVec2f) Index(i int) float32 {
+func (v SFVec2f) Index(i int) float64 {
 	if i == 0 {
 		return v.X
 	}
@@ -64,9 +64,9 @@ func (v SFVec2f) String() string { return fmt.Sprintf("%g %g", v.X, v.Y) }
 // SFVec3f — 3D vector
 // ---------------------------------------------------------------------------
 
-// SFVec3f is a 3-component float32 vector.
+// SFVec3f is a 3-component float64 vector.
 type SFVec3f struct {
-	X, Y, Z float32
+	X, Y, Z float64
 }
 
 var (
@@ -77,7 +77,7 @@ var (
 )
 
 // NewVec3f creates a 3D vector.
-func NewVec3f(x, y, z float32) SFVec3f { return SFVec3f{x, y, z} }
+func NewVec3f(x, y, z float64) SFVec3f { return SFVec3f{x, y, z} }
 
 // Add returns the component-wise sum.
 func (v SFVec3f) Add(o SFVec3f) SFVec3f {
@@ -90,12 +90,12 @@ func (v SFVec3f) Sub(o SFVec3f) SFVec3f {
 }
 
 // Scale returns the vector scaled by s.
-func (v SFVec3f) Scale(s float32) SFVec3f {
+func (v SFVec3f) Scale(s float64) SFVec3f {
 	return SFVec3f{v.X * s, v.Y * s, v.Z * s}
 }
 
 // Dot returns the dot product.
-func (v SFVec3f) Dot(o SFVec3f) float32 {
+func (v SFVec3f) Dot(o SFVec3f) float64 {
 	return v.X*o.X + v.Y*o.Y + v.Z*o.Z
 }
 
@@ -109,8 +109,8 @@ func (v SFVec3f) Cross(o SFVec3f) SFVec3f {
 }
 
 // Length returns the Euclidean length.
-func (v SFVec3f) Length() float32 {
-	return float32(math.Sqrt(float64(v.Dot(v))))
+func (v SFVec3f) Length() float64 {
+	return float64(math.Sqrt(float64(v.Dot(v))))
 }
 
 // Normalize returns the unit-length vector.
@@ -131,7 +131,7 @@ func (v SFVec3f) Eq(o SFVec3f) bool {
 }
 
 // Index returns the i-th component (0=X, 1=Y, 2=Z).
-func (v SFVec3f) Index(i int) float32 {
+func (v SFVec3f) Index(i int) float64 {
 	switch i {
 	case 0:
 		return v.X
@@ -148,7 +148,7 @@ func (v SFVec3f) String() string {
 }
 
 // Lerp linearly interpolates between two vectors.
-func (v SFVec3f) Lerp(o SFVec3f, t float32) SFVec3f {
+func (v SFVec3f) Lerp(o SFVec3f, t float64) SFVec3f {
 	return SFVec3f{
 		v.X + t*(o.X-v.X),
 		v.Y + t*(o.Y-v.Y),
@@ -160,28 +160,28 @@ func (v SFVec3f) Lerp(o SFVec3f, t float32) SFVec3f {
 // SFVec4f — homogeneous 4D vector
 // ---------------------------------------------------------------------------
 
-// SFVec4f is a 4-component float32 vector.
+// SFVec4f is a 4-component float64 vector.
 type SFVec4f struct {
-	X, Y, Z, W float32
+	X, Y, Z, W float64
 }
 
 // NewVec4f creates a 4D vector.
-func NewVec4f(x, y, z, w float32) SFVec4f { return SFVec4f{x, y, z, w} }
+func NewVec4f(x, y, z, w float64) SFVec4f { return SFVec4f{x, y, z, w} }
 
 // ---------------------------------------------------------------------------
 // SFColor — RGBA color
 // ---------------------------------------------------------------------------
 
-// SFColor represents an RGBA color with float32 components in [0,1].
+// SFColor represents an RGBA color with float64 components in [0,1].
 type SFColor struct {
-	R, G, B, A float32
+	R, G, B, A float64
 }
 
 // NewColor creates an opaque color (alpha=1).
-func NewColor(r, g, b float32) SFColor { return SFColor{r, g, b, 1} }
+func NewColor(r, g, b float64) SFColor { return SFColor{r, g, b, 1} }
 
 // NewColorA creates a color with explicit alpha.
-func NewColorA(r, g, b, a float32) SFColor { return SFColor{r, g, b, a} }
+func NewColorA(r, g, b, a float64) SFColor { return SFColor{r, g, b, a} }
 
 var (
 	Black   = SFColor{0, 0, 0, 1}
@@ -206,7 +206,7 @@ func (c SFColor) Sub(o SFColor) SFColor {
 }
 
 // Scale returns the color scaled by s.
-func (c SFColor) Scale(s float32) SFColor {
+func (c SFColor) Scale(s float64) SFColor {
 	return SFColor{c.R * s, c.G * s, c.B * s, c.A * s}
 }
 
@@ -217,7 +217,7 @@ func (c SFColor) Eq(o SFColor) bool {
 
 // NormalizeColor clamps each component to [0,1].
 func (c SFColor) NormalizeColor() SFColor {
-	cl := func(v float32) float32 {
+	cl := func(v float64) float64 {
 		if v < 0 {
 			return 0
 		}
@@ -244,11 +244,11 @@ func (c SFColor) String() string {
 // SFRotation represents an axis-angle rotation. X,Y,Z define the axis, W is
 // the angle in radians.
 type SFRotation struct {
-	X, Y, Z, W float32
+	X, Y, Z, W float64
 }
 
 // NewRotation creates a rotation from axis components and an angle.
-func NewRotation(x, y, z, angle float32) SFRotation {
+func NewRotation(x, y, z, angle float64) SFRotation {
 	return SFRotation{x, y, z, angle}
 }
 
@@ -258,7 +258,7 @@ func (r SFRotation) Axis() SFVec3f {
 }
 
 // Angle returns the rotation angle in radians.
-func (r SFRotation) Angle() float32 { return r.W }
+func (r SFRotation) Angle() float64 { return r.W }
 
 // Eq returns true if both rotations are identical.
 func (r SFRotation) Eq(o SFRotation) bool {
@@ -271,7 +271,7 @@ func (r SFRotation) String() string {
 }
 
 // SlerpRotation interpolates between two axis-angle rotations using quaternion slerp.
-func SlerpRotation(a, b SFRotation, t float32) SFRotation {
+func SlerpRotation(a, b SFRotation, t float64) SFRotation {
 	// Convert axis-angle to quaternion
 	q1 := axisAngleToQuat(a)
 	q2 := axisAngleToQuat(b)
@@ -325,13 +325,13 @@ func quatToAxisAngle(q [4]float64) SFRotation {
 	angle := 2 * math.Acos(math.Max(-1, math.Min(1, q[3])))
 	s := math.Sqrt(1 - q[3]*q[3])
 	if s < 1e-8 {
-		return SFRotation{0, 1, 0, float32(angle)}
+		return SFRotation{0, 1, 0, float64(angle)}
 	}
 	return SFRotation{
-		X: float32(q[0] / s),
-		Y: float32(q[1] / s),
-		Z: float32(q[2] / s),
-		W: float32(angle),
+		X: float64(q[0] / s),
+		Y: float64(q[1] / s),
+		Z: float64(q[2] / s),
+		W: float64(angle),
 	}
 }
 
@@ -341,12 +341,12 @@ func quatToAxisAngle(q [4]float64) SFRotation {
 
 // SFImage holds raw pixel data for VRML PixelTexture nodes.
 type SFImage struct {
-	Width, Height, NumComponents int32
+	Width, Height, NumComponents int64
 	Pixels                       []uint8
 }
 
 // NewImage creates an empty image with allocated pixel buffer.
-func NewImage(w, h, nc int32) SFImage {
+func NewImage(w, h, nc int64) SFImage {
 	return SFImage{
 		Width:         w,
 		Height:        h,
@@ -359,8 +359,8 @@ func NewImage(w, h, nc int32) SFImage {
 // Matrix — 4x4 transformation matrix (row-major)
 // ---------------------------------------------------------------------------
 
-// Matrix is a 4x4 float32 transformation matrix.
-type Matrix [4][4]float32
+// Matrix is a 4x4 float64 transformation matrix.
+type Matrix [4][4]float64
 
 // Identity returns the 4x4 identity matrix.
 func Identity() Matrix {
@@ -373,7 +373,7 @@ func Identity() Matrix {
 }
 
 // ScaleMatrix creates a non-uniform scaling matrix.
-func ScaleMatrix(sx, sy, sz float32) Matrix {
+func ScaleMatrix(sx, sy, sz float64) Matrix {
 	m := Identity()
 	m[0][0] = sx
 	m[1][1] = sy
@@ -382,7 +382,7 @@ func ScaleMatrix(sx, sy, sz float32) Matrix {
 }
 
 // TranslationMatrix creates a translation matrix.
-func TranslationMatrix(tx, ty, tz float32) Matrix {
+func TranslationMatrix(tx, ty, tz float64) Matrix {
 	m := Identity()
 	m[3][0] = tx
 	m[3][1] = ty
@@ -394,8 +394,8 @@ func TranslationMatrix(tx, ty, tz float32) Matrix {
 func RotationMatrix(rot SFRotation) Matrix {
 	axis := rot.Axis()
 	angle := float64(rot.W)
-	c := float32(math.Cos(angle))
-	s := float32(math.Sin(angle))
+	c := float64(math.Cos(angle))
+	s := float64(math.Sin(angle))
 	t := 1 - c
 	x, y, z := axis.X, axis.Y, axis.Z
 
@@ -491,22 +491,22 @@ func (m Matrix) Invert() Matrix {
 	}
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			inv[i][j] = float32(aug[i][j+4])
+			inv[i][j] = float64(aug[i][j+4])
 		}
 	}
 	return inv
 }
 
 // Determinant calculates the 4x4 matrix determinant.
-func (m Matrix) Determinant() float32 {
+func (m Matrix) Determinant() float64 {
 	return m[0][0]*m.cofactor(0, 0) -
 		m[0][1]*m.cofactor(0, 1) +
 		m[0][2]*m.cofactor(0, 2) -
 		m[0][3]*m.cofactor(0, 3)
 }
 
-func (m Matrix) cofactor(row, col int) float32 {
-	var sub [3][3]float32
+func (m Matrix) cofactor(row, col int) float64 {
+	var sub [3][3]float64
 	si := 0
 	for i := 0; i < 4; i++ {
 		if i == row {

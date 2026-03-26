@@ -48,7 +48,7 @@ func TestFace_HasCoplanarNeighbor_None(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -92,7 +92,7 @@ func TestFace_HasCoplanarNeighbor_WithCoplanar(t *testing.T) {
 		{X: 10, Y: 10, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -122,7 +122,7 @@ func TestFace_AdjustOuterLoop_SingleLoop(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 1, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -152,7 +152,7 @@ func TestLoop_HasColinearVerts_Found(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 5, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -179,7 +179,7 @@ func TestLoop_HasColinearVerts_None(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -205,7 +205,7 @@ func TestFace_HasColinearVerts(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 5, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -234,7 +234,7 @@ func TestSolid_HasColinearVerts_True(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 5, Y: 5, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -250,7 +250,7 @@ func TestSolid_HasColinearVerts_False(t *testing.T) {
 		{X: 10, Y: 0, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -270,7 +270,7 @@ func TestSolid_HasDegenerateFaces_None(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -287,7 +287,7 @@ func TestSolid_RemoveDegenerateFaces(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -305,7 +305,7 @@ func TestSolid_VerifyDetailed_Clean(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -334,7 +334,7 @@ func TestSolid_VerifyDetailed_Quad(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -357,7 +357,7 @@ func TestVertex_VertexFaces(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -392,7 +392,7 @@ func TestVertex_VertexEdges(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 1, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -416,7 +416,7 @@ func TestVertex_VertexNeighbors(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 1, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -449,7 +449,7 @@ func TestFace_FaceNeighbors(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -492,7 +492,7 @@ func TestSolid_RemoveCoplanarFaces(t *testing.T) {
 		{X: 10, Y: 10, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -521,7 +521,7 @@ func TestSolid_RemoveCoplaneColine(t *testing.T) {
 		{X: 10, Y: 10, Z: 0},
 		{X: 0, Y: 10, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -543,7 +543,7 @@ func TestSolid_RemoveColinearVerts(t *testing.T) {
 		{X: 1, Y: 1, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")

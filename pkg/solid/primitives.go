@@ -29,7 +29,7 @@ func MakeLamina(vertices []vec.SFVec3f, color vec.SFColor) *Solid {
 // MakeCircle constructs a circular lamina (disc) centered at (cx, cy) with the
 // given radius at height h, approximated by n segments. n must be >= 3.
 // This matches the C++ vrSolidCircle constructor.
-func MakeCircle(cx, cy, radius, h float32, n int, color vec.SFColor) *Solid {
+func MakeCircle(cx, cy, radius, h float64, n int, color vec.SFColor) *Solid {
 	if n < 3 {
 		return nil
 	}
@@ -42,8 +42,8 @@ func MakeCircle(cx, cy, radius, h float32, n int, color vec.SFColor) *Solid {
 	prev := startV
 	for i := 1; i < n; i++ {
 		a := float64(i) * 2 * math.Pi / float64(n)
-		x := cx + radius*float32(math.Cos(a))
-		y := cy + radius*float32(math.Sin(a))
+		x := cx + radius*float64(math.Cos(a))
+		y := cy + radius*float64(math.Sin(a))
 		nv, _ := Mev(s, prev, vec.SFVec3f{X: x, Y: y, Z: h})
 		prev = nv
 	}
@@ -60,7 +60,7 @@ func MakeCircle(cx, cy, radius, h float32, n int, color vec.SFColor) *Solid {
 // around the X axis. majorR is the distance from the center of the tube to the
 // center of the torus. minorR is the radius of the tube. majorSegs and minorSegs
 // control the tessellation. Both must be >= 3.
-func MakeTorus(majorR, minorR float32, majorSegs, minorSegs int, color vec.SFColor) *Solid {
+func MakeTorus(majorR, minorR float64, majorSegs, minorSegs int, color vec.SFColor) *Solid {
 	if majorSegs < 3 || minorSegs < 3 {
 		return nil
 	}
@@ -96,7 +96,7 @@ func MakeTorus(majorR, minorR float32, majorSegs, minorSegs int, color vec.SFCol
 }
 
 // MakeCube constructs a cube centered at the origin with the given half-size.
-func MakeCube(halfSize float32, color vec.SFColor) *Solid {
+func MakeCube(halfSize float64, color vec.SFColor) *Solid {
 	h := halfSize
 	positions := []vec.SFVec3f{
 		{X: -h, Y: h, Z: h},
@@ -104,7 +104,7 @@ func MakeCube(halfSize float32, color vec.SFColor) *Solid {
 		{X: h, Y: -h, Z: h},
 		{X: -h, Y: -h, Z: h},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, color)
 	if s == nil {
 		return nil
@@ -116,13 +116,13 @@ func MakeCube(halfSize float32, color vec.SFColor) *Solid {
 }
 
 // MakePrism constructs a triangular prism by sweeping a triangle along Z.
-func MakePrism(height float32, color vec.SFColor) *Solid {
+func MakePrism(height float64, color vec.SFColor) *Solid {
 	positions := []vec.SFVec3f{
 		{X: 0, Y: 1, Z: height / 2},
 		{X: 1, Y: -1, Z: height / 2},
 		{X: -1, Y: -1, Z: height / 2},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, color)
 	if s == nil {
 		return nil
@@ -135,7 +135,7 @@ func MakePrism(height float32, color vec.SFColor) *Solid {
 
 // MakeCylinder constructs a cylinder of given radius and height, centered at origin.
 // The cylinder axis is along Z. n controls the number of circumferential segments.
-func MakeCylinder(radius, height float32, n int, color vec.SFColor) *Solid {
+func MakeCylinder(radius, height float64, n int, color vec.SFColor) *Solid {
 	if n < 3 {
 		return nil
 	}
@@ -155,7 +155,7 @@ func MakeCylinder(radius, height float32, n int, color vec.SFColor) *Solid {
 
 // MakeSphere constructs an approximated sphere using rotational sweep of a
 // semicircular arc. latSegs and lonSegs control tessellation. Both must be >= 3.
-func MakeSphere(radius float32, latSegs, lonSegs int, color vec.SFColor) *Solid {
+func MakeSphere(radius float64, latSegs, lonSegs int, color vec.SFColor) *Solid {
 	if latSegs < 3 || lonSegs < 3 {
 		return nil
 	}
@@ -174,8 +174,8 @@ func MakeSphere(radius float32, latSegs, lonSegs int, color vec.SFColor) *Solid 
 	for i := 1; i < latSegs; i++ {
 		a := float64(i) * math.Pi / float64(latSegs)
 		loc := vec.SFVec3f{
-			X: -radius * float32(math.Cos(a)),
-			Y: radius * float32(math.Sin(a)),
+			X: -radius * float64(math.Cos(a)),
+			Y: radius * float64(math.Sin(a)),
 			Z: 0,
 		}
 		nv, _ := Lmev(prev.He, loc)

@@ -145,14 +145,14 @@ func (at *ActionTraverser) updateLODs() {
 			Y: at.ViewerPos.Y - lod.Center.Y,
 			Z: at.ViewerPos.Z - lod.Center.Z,
 		}
-		dist := float32(math.Sqrt(float64(diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z)))
+		dist := float64(math.Sqrt(float64(diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z)))
 
-		selected := int32(len(lod.Level) - 1) // default: coarsest
+		selected := int64(len(lod.Level) - 1) // default: coarsest
 		for i, r := range lod.Range {
 			if dist < r {
-				selected = int32(i)
-				if selected >= int32(len(lod.Level)) {
-					selected = int32(len(lod.Level) - 1)
+				selected = int64(i)
+				if selected >= int64(len(lod.Level)) {
+					selected = int64(len(lod.Level) - 1)
 				}
 				break
 			}

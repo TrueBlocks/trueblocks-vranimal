@@ -206,7 +206,7 @@ func TestSolid_Renumber(t *testing.T) {
 	Lmev(v0.He, vec.SFVec3f{X: 1})
 	s.Renumber()
 	// After renumber, indices should be sequential
-	var vertIndices []uint32
+	var vertIndices []uint64
 	s.ForEachVertex(func(v *Vertex) bool {
 		vertIndices = append(vertIndices, v.Index)
 		return true
@@ -538,7 +538,7 @@ func TestBuildFromIndexSet_Nil(t *testing.T) {
 	if BuildFromIndexSet(nil, nil, vec.Red) != nil {
 		t.Fatal("nil input should return nil")
 	}
-	if BuildFromIndexSet([]vec.SFVec3f{}, []int32{}, vec.Red) != nil {
+	if BuildFromIndexSet([]vec.SFVec3f{}, []int64{}, vec.Red) != nil {
 		t.Fatal("empty input should return nil")
 	}
 }
@@ -549,7 +549,7 @@ func TestBuildFromIndexSet_Triangle(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Fatal("nil solid")
@@ -632,7 +632,7 @@ func TestHalfEdge_IsWide(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -708,7 +708,7 @@ func TestVertex_CalcNormal(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -787,7 +787,7 @@ func TestFace_IsPlanar(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")

@@ -68,7 +68,7 @@ func TestMakeLamina_Pentagon(t *testing.T) {
 	verts := make([]vec.SFVec3f, n)
 	for i := range verts {
 		a := 2 * math.Pi * float64(i) / float64(n)
-		verts[i] = vec.SFVec3f{X: float32(math.Cos(a)), Y: float32(math.Sin(a)), Z: 0}
+		verts[i] = vec.SFVec3f{X: float64(math.Cos(a)), Y: float64(math.Sin(a)), Z: 0}
 	}
 	s := MakeLamina(verts, yellow)
 	if s == nil {

@@ -311,7 +311,7 @@ func (v *Validator) validateChildren(children []node.Node) {
 }
 
 // inRange checks if val is in [lo, hi].
-func inRange(val, lo, hi float32) bool {
+func inRange(val, lo, hi float64) bool {
 	return val >= lo && val <= hi
 }
 
@@ -373,7 +373,7 @@ func (v *Validator) validateShape(n *node.Shape) {
 
 func (v *Validator) validateSpotLight(n *node.SpotLight) {
 	nt, nn := "SpotLight", n.GetName()
-	halfPi := float32(math.Pi / 2)
+	halfPi := float64(math.Pi / 2)
 	if n.Radius < 0 {
 		v.addError(nt, nn, "radius %g must be >= 0", n.Radius)
 	}
@@ -430,7 +430,7 @@ func (v *Validator) validateSphere(n *node.Sphere) {
 
 func (v *Validator) validateViewpoint(n *node.Viewpoint) {
 	nt, nn := "Viewpoint", n.GetName()
-	if n.FieldOfView <= 0 || n.FieldOfView >= float32(math.Pi) {
+	if n.FieldOfView <= 0 || n.FieldOfView >= float64(math.Pi) {
 		v.addError(nt, nn, "fieldOfView %g out of range (0, pi)", n.FieldOfView)
 	}
 }
@@ -461,7 +461,7 @@ func (v *Validator) validateElevationGrid(n *node.ElevationGrid) {
 		v.addError(nt, nn, "zSpacing %g must be >= 0", n.ZSpacing)
 	}
 	nVerts := n.XDimension * n.ZDimension
-	if int32(len(n.Heights)) < nVerts {
+	if int64(len(n.Heights)) < nVerts {
 		v.addError(nt, nn, "height array has %d values, need at least %d (xDimension * zDimension)", len(n.Heights), nVerts)
 	}
 }
@@ -497,11 +497,11 @@ func (v *Validator) validatePointSet(n *node.PointSet) {
 
 // --- Shared dataset helpers ---
 
-func (v *Validator) validateDataSetCoords(nt, nn string, coord *node.Coordinate, coordIndex []int32) {
+func (v *Validator) validateDataSetCoords(nt, nn string, coord *node.Coordinate, coordIndex []int64) {
 	if coord == nil || len(coord.Point) == 0 {
 		return
 	}
-	nCoords := int32(len(coord.Point))
+	nCoords := int64(len(coord.Point))
 	for i, idx := range coordIndex {
 		if idx != -1 && (idx < 0 || idx >= nCoords) {
 			v.addError(nt, nn, "coordIndex[%d] = %d out of range [0, %d)", i, idx, nCoords)
@@ -510,11 +510,11 @@ func (v *Validator) validateDataSetCoords(nt, nn string, coord *node.Coordinate,
 	}
 }
 
-func (v *Validator) validateDataSetColors(nt, nn string, color *node.ColorNode, colorIndex, coordIndex []int32, colorPerVertex bool) {
+func (v *Validator) validateDataSetColors(nt, nn string, color *node.ColorNode, colorIndex, coordIndex []int64, colorPerVertex bool) {
 	if color == nil || len(color.Color) == 0 {
 		return
 	}
-	nColors := int32(len(color.Color))
+	nColors := int64(len(color.Color))
 
 	if !colorPerVertex {
 		// Color per face/polyline: count faces (separated by -1 sentinels)
@@ -526,7 +526,7 @@ func (v *Validator) validateDataSetColors(nt, nn string, color *node.ColorNode, 
 					break
 				}
 			}
-		} else if nColors < int32(nFaces) {
+		} else if nColors < int64(nFaces) {
 			v.addError(nt, nn, "need at least %d colors for %d faces, have %d", nFaces, nFaces, nColors)
 		}
 	} else {
@@ -540,7 +540,7 @@ func (v *Validator) validateDataSetColors(nt, nn string, color *node.ColorNode, 
 			}
 		} else {
 			// When no colorIndex, largest coordIndex must be < nColors
-			largest := int32(-1)
+			largest := int64(-1)
 			for _, idx := range coordIndex {
 				if idx > largest {
 					largest = idx
@@ -553,7 +553,7 @@ func (v *Validator) validateDataSetColors(nt, nn string, color *node.ColorNode, 
 	}
 }
 
-func countFaces(coordIndex []int32) int {
+func countFaces(coordIndex []int64) int {
 	if len(coordIndex) == 0 {
 		return 0
 	}
@@ -646,7 +646,7 @@ func (v *Validator) validateLOD(n *node.LOD) {
 
 func (v *Validator) validateSwitch(n *node.Switch) {
 	nt, nn := "Switch", n.GetName()
-	if n.WhichChoice >= int32(len(n.Choice)) && len(n.Choice) > 0 {
+	if n.WhichChoice >= int64(len(n.Choice)) && len(n.Choice) > 0 {
 		v.addWarning(nt, nn, "whichChoice %d out of range [0, %d)", n.WhichChoice, len(n.Choice))
 	}
 	for _, child := range n.Choice {

@@ -65,7 +65,7 @@ type FieldDef struct {
 	Name      string
 	Type      int       // SFBOOL, SFINT32, etc.
 	EventType EventType // eventIn, eventOut, exposedField, field
-	ID        int32
+	ID        int64
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ func (rc *RuntimeClass) FindField(name string) *FieldDef {
 }
 
 // FindFieldByID returns the FieldDef with the given ID, or nil.
-func (rc *RuntimeClass) FindFieldByID(id int32) *FieldDef {
+func (rc *RuntimeClass) FindFieldByID(id int64) *FieldDef {
 	for cur := rc; cur != nil; cur = cur.BaseClass {
 		for i := range cur.Fields {
 			if cur.Fields[i].ID == id {
@@ -154,21 +154,21 @@ func CreateByName(name string) any {
 
 // BaseNode is the universal base for all VRML objects with reference counting.
 type BaseNode struct {
-	refCount int32
+	refCount int64
 	class    *RuntimeClass
 }
 
 // Reference increments the reference count.
-func (n *BaseNode) Reference() { atomic.AddInt32(&n.refCount, 1) }
+func (n *BaseNode) Reference() { atomic.AddInt64(&n.refCount, 1) }
 
 // Dereference decrements the reference count.
-func (n *BaseNode) Dereference() { atomic.AddInt32(&n.refCount, -1) }
+func (n *BaseNode) Dereference() { atomic.AddInt64(&n.refCount, -1) }
 
 // IsReferenced returns true if the reference count is > 0.
-func (n *BaseNode) IsReferenced() bool { return atomic.LoadInt32(&n.refCount) > 0 }
+func (n *BaseNode) IsReferenced() bool { return atomic.LoadInt64(&n.refCount) > 0 }
 
 // RefCount returns the current reference count.
-func (n *BaseNode) RefCount() int32 { return atomic.LoadInt32(&n.refCount) }
+func (n *BaseNode) RefCount() int64 { return atomic.LoadInt64(&n.refCount) }
 
 // SetRuntimeClass sets the runtime class of this node.
 func (n *BaseNode) SetRuntimeClass(rc *RuntimeClass) { n.class = rc }
@@ -231,12 +231,12 @@ type Field struct {
 	Name      string
 	Type      int // SFBOOL, SFINT32, etc.
 	EventType EventType
-	ID        int32
+	ID        int64
 	Value     FieldValue
 }
 
 // NewField creates a field with the given properties.
-func NewField(name string, typ int, eventType EventType, id int32, val FieldValue) Field {
+func NewField(name string, typ int, eventType EventType, id int64, val FieldValue) Field {
 	return Field{Name: name, Type: typ, EventType: eventType, ID: id, Value: val}
 }
 
@@ -252,17 +252,17 @@ func AsBool(v FieldValue) bool {
 	return false
 }
 
-// AsInt32 extracts an int32 from a FieldValue.
-func AsInt32(v FieldValue) int32 {
-	if i, ok := v.(int32); ok {
+// AsInt32 extracts an int64 from a FieldValue.
+func AsInt32(v FieldValue) int64 {
+	if i, ok := v.(int64); ok {
 		return i
 	}
 	return 0
 }
 
-// AsFloat32 extracts a float32 from a FieldValue.
-func AsFloat32(v FieldValue) float32 {
-	if f, ok := v.(float32); ok {
+// AsFloat32 extracts a float64 from a FieldValue.
+func AsFloat32(v FieldValue) float64 {
+	if f, ok := v.(float64); ok {
 		return f
 	}
 	return 0
@@ -324,17 +324,17 @@ func AsImage(v FieldValue) vec.SFImage {
 	return vec.SFImage{}
 }
 
-// AsInt32Slice extracts an []int32 from a FieldValue.
-func AsInt32Slice(v FieldValue) []int32 {
-	if s, ok := v.([]int32); ok {
+// AsInt32Slice extracts an []int64 from a FieldValue.
+func AsInt32Slice(v FieldValue) []int64 {
+	if s, ok := v.([]int64); ok {
 		return s
 	}
 	return nil
 }
 
-// AsFloat32Slice extracts a []float32 from a FieldValue.
-func AsFloat32Slice(v FieldValue) []float32 {
-	if s, ok := v.([]float32); ok {
+// AsFloat32Slice extracts a []float64 from a FieldValue.
+func AsFloat32Slice(v FieldValue) []float64 {
+	if s, ok := v.([]float64); ok {
 		return s
 	}
 	return nil

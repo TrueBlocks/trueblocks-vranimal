@@ -141,7 +141,7 @@ func (s *Solid) ForEachVertex(fn func(*Vertex) bool) {
 // ---------------------------------------------------------------------------
 
 // FindFace returns the face at the given index, or nil.
-func (s *Solid) FindFace(index uint32) *Face {
+func (s *Solid) FindFace(index uint64) *Face {
 	for f := s.Faces; f != nil; f = f.Next {
 		if f.Index == index {
 			return f
@@ -151,7 +151,7 @@ func (s *Solid) FindFace(index uint32) *Face {
 }
 
 // FindVertex returns the vertex at the given index, or nil.
-func (s *Solid) FindVertex(index uint32) *Vertex {
+func (s *Solid) FindVertex(index uint64) *Vertex {
 	for v := s.Verts; v != nil; v = v.Next {
 		if v.Index == index {
 			return v
@@ -161,7 +161,7 @@ func (s *Solid) FindVertex(index uint32) *Vertex {
 }
 
 // FindEdge returns the edge at the given index, or nil.
-func (s *Solid) FindEdge(index uint32) *Edge {
+func (s *Solid) FindEdge(index uint64) *Edge {
 	for e := s.Edges; e != nil; e = e.Next {
 		if e.Index == index {
 			return e
@@ -225,8 +225,8 @@ func (s *Solid) Stats() (faces, edges, verts int) {
 }
 
 // Volume computes the volume using the divergence theorem.
-func (s *Solid) Volume() float32 {
-	var vol float32
+func (s *Solid) Volume() float64 {
+	var vol float64
 	for f := s.Faces; f != nil; f = f.Next {
 		if f.LoopOut == nil {
 			continue
@@ -259,14 +259,14 @@ func (s *Solid) SetColor(c vec.SFColor) {
 }
 
 // SetFaceMarks sets Mark1 on all faces.
-func (s *Solid) SetFaceMarks(m uint32) {
+func (s *Solid) SetFaceMarks(m uint64) {
 	for f := s.Faces; f != nil; f = f.Next {
 		f.Mark1 = m
 	}
 }
 
 // SetVertexMarks sets Mark on all vertices.
-func (s *Solid) SetVertexMarks(m uint32) {
+func (s *Solid) SetVertexMarks(m uint64) {
 	for v := s.Verts; v != nil; v = v.Next {
 		v.Mark = m
 	}
@@ -288,7 +288,7 @@ func (s *Solid) TransformGeometry(m vec.Matrix) {
 
 // Renumber assigns sequential indices to faces, edges, and vertices.
 func (s *Solid) Renumber() {
-	var i uint32
+	var i uint64
 	i = 0
 	for f := s.Faces; f != nil; f = f.Next {
 		f.Index = i

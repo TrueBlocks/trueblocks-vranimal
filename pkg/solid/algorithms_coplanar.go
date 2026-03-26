@@ -243,7 +243,7 @@ func (s *Solid) RemoveDegenerateFaces() {
 // VerifyError describes a structural integrity problem.
 type VerifyError struct {
 	Element string
-	Index   uint32
+	Index   uint64
 	Message string
 }
 
@@ -459,6 +459,6 @@ func (f *Face) GetNormal() vec.SFVec3f {
 }
 
 // GetD returns the plane distance.
-func (f *Face) GetD() float32 {
+func (f *Face) GetD() float64 {
 	return f.D
 }

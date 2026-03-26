@@ -93,7 +93,7 @@ func makeCube() *Solid {
 		{X: 1, Y: 1, Z: -1},
 		{X: -1, Y: 1, Z: -1},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		return nil
@@ -191,7 +191,7 @@ func TestSplit_TrianglePrism(t *testing.T) {
 		{X: 2, Y: 0, Z: 0},
 		{X: 1, Y: 2, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -262,7 +262,7 @@ func TestSolid_SetFaceMarks2(t *testing.T) {
 		{X: 1, Y: 0, Z: 0},
 		{X: 0, Y: 1, Z: 0},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
@@ -356,8 +356,8 @@ func TestSplit_DoubleSplit(t *testing.T) {
 
 	// Plane 1: tilted 25° from Z toward X
 	tiltRad := 25.0 * math.Pi / 180.0
-	n1x := float32(math.Sin(tiltRad))
-	n1z := float32(math.Cos(tiltRad))
+	n1x := float64(math.Sin(tiltRad))
+	n1z := float64(math.Cos(tiltRad))
 	plane1 := Plane{Normal: vec.SFVec3f{X: n1x, Y: 0, Z: n1z}, D: 0}
 
 	half1, half2, ok := s.Split(plane1)
@@ -373,8 +373,8 @@ func TestSplit_DoubleSplit(t *testing.T) {
 
 	// Plane 2: tilted 30° in XY plane
 	tilt2Rad := 30.0 * math.Pi / 180.0
-	n2x := float32(math.Sin(tilt2Rad))
-	n2y := float32(math.Cos(tilt2Rad))
+	n2x := float64(math.Sin(tilt2Rad))
+	n2y := float64(math.Cos(tilt2Rad))
 	plane2 := Plane{Normal: vec.SFVec3f{X: n2x, Y: n2y, Z: 0}, D: 0}
 
 	// Split both halves by plane2 to produce 4 quarters

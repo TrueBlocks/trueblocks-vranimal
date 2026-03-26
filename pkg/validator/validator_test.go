@@ -119,7 +119,7 @@ func TestSpotLightValidation(t *testing.T) {
 func TestInterpolatorKeyMismatch(t *testing.T) {
 	scene := []node.Node{
 		&node.ColorInterpolator{
-			Interpolator: node.Interpolator{Key: []float32{0, 0.5, 1.0}},
+			Interpolator: node.Interpolator{Key: []float64{0, 0.5, 1.0}},
 			KeyValue:     []vec.SFColor{{R: 1}, {G: 1}},
 		},
 	}

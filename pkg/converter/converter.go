@@ -97,21 +97,21 @@ func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 // UpdateDynamic syncs changed VRML transform/material fields to their g3n counterparts.
 func (nm *NodeMap) UpdateDynamic() {
 	for vrmlT, g3nNode := range nm.Transforms {
-		g3nNode.SetPosition(vrmlT.Translation.X, vrmlT.Translation.Y, vrmlT.Translation.Z)
+		g3nNode.SetPosition(float32(vrmlT.Translation.X), float32(vrmlT.Translation.Y), float32(vrmlT.Translation.Z))
 		if vrmlT.Rotation.W != 0 {
-			axis := math32.Vector3{X: vrmlT.Rotation.X, Y: vrmlT.Rotation.Y, Z: vrmlT.Rotation.Z}
+			axis := math32.Vector3{X: float32(vrmlT.Rotation.X), Y: float32(vrmlT.Rotation.Y), Z: float32(vrmlT.Rotation.Z)}
 			axis.Normalize()
 			q := math32.NewQuaternion(0, 0, 0, 1)
-			q.SetFromAxisAngle(&axis, vrmlT.Rotation.W)
+			q.SetFromAxisAngle(&axis, float32(vrmlT.Rotation.W))
 			g3nNode.SetQuaternionQuat(q)
 		}
-		g3nNode.SetScale(vrmlT.Scale.X, vrmlT.Scale.Y, vrmlT.Scale.Z)
+		g3nNode.SetScale(float32(vrmlT.Scale.X), float32(vrmlT.Scale.Y), float32(vrmlT.Scale.Z))
 	}
 	for vrmlM, g3nMat := range nm.Materials {
 		g3nMat.SetColor(toColor(&vrmlM.DiffuseColor))
 		g3nMat.SetEmissiveColor(toColor(&vrmlM.EmissiveColor))
 		if vrmlM.Transparency > 0 {
-			g3nMat.SetOpacity(1.0 - vrmlM.Transparency)
+			g3nMat.SetOpacity(float32(1.0 - vrmlM.Transparency))
 		}
 	}
 	for vrmlLOD, levels := range nm.LODs {
@@ -120,12 +120,12 @@ func (nm *NodeMap) UpdateDynamic() {
 			active = 0
 		}
 		for i, wrapper := range levels {
-			wrapper.SetVisible(int32(i) == active)
+			wrapper.SetVisible(int64(i) == active)
 		}
 	}
 	for vrmlSW, choices := range nm.Switches {
 		for i, wrapper := range choices {
-			wrapper.SetVisible(int32(i) == vrmlSW.WhichChoice)
+			wrapper.SetVisible(int64(i) == vrmlSW.WhichChoice)
 		}
 	}
 	for vrmlBB, g3nNode := range nm.Billboards {
@@ -142,23 +142,23 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string, nm *
 	if hasCenter {
 		// VRML transform: T * C * R * S * C^-1
 		gn.SetPosition(
-			t.Translation.X+t.Center.X,
-			t.Translation.Y+t.Center.Y,
-			t.Translation.Z+t.Center.Z,
+			float32(t.Translation.X+t.Center.X),
+			float32(t.Translation.Y+t.Center.Y),
+			float32(t.Translation.Z+t.Center.Z),
 		)
 	} else {
-		gn.SetPosition(t.Translation.X, t.Translation.Y, t.Translation.Z)
+		gn.SetPosition(float32(t.Translation.X), float32(t.Translation.Y), float32(t.Translation.Z))
 	}
 
 	if t.Rotation.W != 0 {
-		axis := math32.Vector3{X: t.Rotation.X, Y: t.Rotation.Y, Z: t.Rotation.Z}
+		axis := math32.Vector3{X: float32(t.Rotation.X), Y: float32(t.Rotation.Y), Z: float32(t.Rotation.Z)}
 		axis.Normalize()
 		q := math32.NewQuaternion(0, 0, 0, 1)
-		q.SetFromAxisAngle(&axis, t.Rotation.W)
+		q.SetFromAxisAngle(&axis, float32(t.Rotation.W))
 		gn.SetQuaternionQuat(q)
 	}
 
-	gn.SetScale(t.Scale.X, t.Scale.Y, t.Scale.Z)
+	gn.SetScale(float32(t.Scale.X), float32(t.Scale.Y), float32(t.Scale.Z))
 	parent.Add(gn)
 
 	// Register for dynamic updates
@@ -167,7 +167,7 @@ func convertTransform(t *node.Transform, parent *core.Node, baseDir string, nm *
 	childParent := gn
 	if hasCenter {
 		inner := core.NewNode()
-		inner.SetPosition(-t.Center.X, -t.Center.Y, -t.Center.Z)
+		inner.SetPosition(float32(-t.Center.X), float32(-t.Center.Y), float32(-t.Center.Z))
 		gn.Add(inner)
 		childParent = inner
 	}
@@ -272,9 +272,9 @@ func buildMaterial(app *node.Appearance, baseDir string) material.IMaterial {
 		mat = material.NewStandard(dc)
 		mat.SetEmissiveColor(toColor(&m.EmissiveColor))
 		mat.SetSpecularColor(toColor(&m.SpecularColor))
-		mat.SetShininess(m.Shininess * 128.0)
+		mat.SetShininess(float32(m.Shininess * 128.0))
 		if m.Transparency > 0 {
-			mat.SetOpacity(1.0 - m.Transparency)
+			mat.SetOpacity(float32(1.0 - m.Transparency))
 			mat.SetTransparent(true)
 		}
 	} else {
@@ -397,14 +397,14 @@ func applyTextureTransform(tex *texture.Texture2D, tt *node.TextureTransform) {
 	// VRML97 TextureTransform: Tc' = -C * S * R * C * T * Tc
 	// g3n supports offset and repeat (scale) but not rotation.
 	// We apply translation as offset and scale as repeat.
-	tex.SetOffset(tt.Translation.X-tt.Center.X*(tt.Scale.X-1), tt.Translation.Y-tt.Center.Y*(tt.Scale.Y-1))
-	tex.SetRepeat(tt.Scale.X, tt.Scale.Y)
+	tex.SetOffset(float32(tt.Translation.X-tt.Center.X*(tt.Scale.X-1)), float32(tt.Translation.Y-tt.Center.Y*(tt.Scale.Y-1)))
+	tex.SetRepeat(float32(tt.Scale.X), float32(tt.Scale.Y))
 }
 
 func buildGeometry(gn node.GeometryNode) *geometry.Geometry {
 	switch v := gn.(type) {
 	case *node.Box:
-		return geometry.NewBox(v.Size.X, v.Size.Y, v.Size.Z)
+		return geometry.NewBox(float32(v.Size.X), float32(v.Size.Y), float32(v.Size.Z))
 	case *node.Sphere:
 		return geometry.NewSphere(float64(v.Radius), int(v.Slices), int(v.Stacks))
 	case *node.Cone:
@@ -435,7 +435,7 @@ func buildIndexedFaceSet(ifs *node.IndexedFaceSet) *geometry.Geometry {
 	// Build positions VBO
 	positions := math32.NewArrayF32(0, len(points)*3)
 	for _, p := range points {
-		positions.Append(p.X, p.Y, p.Z)
+		positions.Append(float32(p.X), float32(p.Y), float32(p.Z))
 	}
 	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
 
@@ -443,7 +443,7 @@ func buildIndexedFaceSet(ifs *node.IndexedFaceSet) *geometry.Geometry {
 	if ifs.Normal != nil && len(ifs.Normal.Vector) > 0 {
 		normals := math32.NewArrayF32(0, len(ifs.Normal.Vector)*3)
 		for _, n := range ifs.Normal.Vector {
-			normals.Append(n.X, n.Y, n.Z)
+			normals.Append(float32(n.X), float32(n.Y), float32(n.Z))
 		}
 		geom.AddVBO(gls.NewVBO(normals).AddAttrib(gls.VertexNormal))
 	}
@@ -452,7 +452,7 @@ func buildIndexedFaceSet(ifs *node.IndexedFaceSet) *geometry.Geometry {
 	if ifs.Color != nil && len(ifs.Color.Color) > 0 {
 		colors := math32.NewArrayF32(0, len(ifs.Color.Color)*3)
 		for _, c := range ifs.Color.Color {
-			colors.Append(c.R, c.G, c.B)
+			colors.Append(float32(c.R), float32(c.G), float32(c.B))
 		}
 		geom.AddVBO(gls.NewVBO(colors).AddAttrib(gls.VertexColor))
 	}
@@ -461,7 +461,7 @@ func buildIndexedFaceSet(ifs *node.IndexedFaceSet) *geometry.Geometry {
 	if ifs.TexCoord != nil && len(ifs.TexCoord.Point) > 0 {
 		uvs := math32.NewArrayF32(0, len(ifs.TexCoord.Point)*2)
 		for _, tc := range ifs.TexCoord.Point {
-			uvs.Append(tc.X, tc.Y)
+			uvs.Append(float32(tc.X), float32(tc.Y))
 		}
 		geom.AddVBO(gls.NewVBO(uvs).AddAttrib(gls.VertexTexcoord))
 	}
@@ -557,11 +557,11 @@ func buildElevationGrid(eg *node.ElevationGrid) *geometry.Geometry {
 	for z := 0; z < zDim; z++ {
 		for x := 0; x < xDim; x++ {
 			idx := z*xDim + x
-			h := float32(0)
+			h := float64(0)
 			if idx < len(eg.Heights) {
 				h = eg.Heights[idx]
 			}
-			positions.Append(float32(x)*eg.XSpacing, h, float32(z)*eg.ZSpacing)
+			positions.Append(float32(float64(x)*eg.XSpacing), float32(h), float32(float64(z)*eg.ZSpacing))
 		}
 	}
 	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
@@ -601,9 +601,9 @@ func buildExtrusion(ex *node.Extrusion) *geometry.Geometry {
 		}
 		for _, cs := range ex.CrossSection {
 			positions.Append(
-				sp.X+cs.X*scl.X,
-				sp.Y,
-				sp.Z+cs.Y*scl.Y,
+				float32(sp.X+cs.X*scl.X),
+				float32(sp.Y),
+				float32(sp.Z+cs.Y*scl.Y),
 			)
 		}
 	}
@@ -630,8 +630,8 @@ func convertDirLight(dl *node.DirectionalLight, parent *core.Node) {
 	if !dl.On {
 		return
 	}
-	l := light.NewDirectional(toColor(&dl.Color), dl.Intensity)
-	l.SetPosition(dl.Direction.X, dl.Direction.Y, dl.Direction.Z)
+	l := light.NewDirectional(toColor(&dl.Color), float32(dl.Intensity))
+	l.SetPosition(float32(dl.Direction.X), float32(dl.Direction.Y), float32(dl.Direction.Z))
 	l.SetName(dl.GetName())
 	parent.Add(l)
 }
@@ -640,10 +640,10 @@ func convertPointLight(pl *node.PointLight, parent *core.Node) {
 	if !pl.On {
 		return
 	}
-	l := light.NewPoint(toColor(&pl.Color), pl.Intensity)
-	l.SetPosition(pl.Location.X, pl.Location.Y, pl.Location.Z)
-	l.SetLinearDecay(pl.Attenuation.Y)
-	l.SetQuadraticDecay(pl.Attenuation.Z)
+	l := light.NewPoint(toColor(&pl.Color), float32(pl.Intensity))
+	l.SetPosition(float32(pl.Location.X), float32(pl.Location.Y), float32(pl.Location.Z))
+	l.SetLinearDecay(float32(pl.Attenuation.Y))
+	l.SetQuadraticDecay(float32(pl.Attenuation.Z))
 	l.SetName(pl.GetName())
 	parent.Add(l)
 }
@@ -652,12 +652,12 @@ func convertSpotLight(sl *node.SpotLight, parent *core.Node) {
 	if !sl.On {
 		return
 	}
-	l := light.NewSpot(toColor(&sl.Color), sl.Intensity)
-	l.SetPosition(sl.Location.X, sl.Location.Y, sl.Location.Z)
-	l.SetDirection(sl.Direction.X, sl.Direction.Y, sl.Direction.Z)
-	l.SetCutoffAngle(sl.CutOffAngle * 180.0 / math.Pi)
-	l.SetLinearDecay(sl.Attenuation.Y)
-	l.SetQuadraticDecay(sl.Attenuation.Z)
+	l := light.NewSpot(toColor(&sl.Color), float32(sl.Intensity))
+	l.SetPosition(float32(sl.Location.X), float32(sl.Location.Y), float32(sl.Location.Z))
+	l.SetDirection(float32(sl.Direction.X), float32(sl.Direction.Y), float32(sl.Direction.Z))
+	l.SetCutoffAngle(float32(sl.CutOffAngle * 180.0 / math.Pi))
+	l.SetLinearDecay(float32(sl.Attenuation.Y))
+	l.SetQuadraticDecay(float32(sl.Attenuation.Z))
 	l.SetName(sl.GetName())
 	parent.Add(l)
 }
@@ -696,7 +696,7 @@ func convertLOD(lod *node.LOD, parent *core.Node, baseDir string, nm *NodeMap) {
 	levels := make([]*core.Node, len(lod.Level))
 	for i, child := range lod.Level {
 		wrapper := core.NewNode()
-		wrapper.SetVisible(int32(i) == active)
+		wrapper.SetVisible(int64(i) == active)
 		container.Add(wrapper)
 		convertNode(child, wrapper, baseDir, nm)
 		levels[i] = wrapper
@@ -732,17 +732,17 @@ func updateBillboardRotation(bb *node.Billboard, g3nNode *core.Node, camPos math
 		g3nNode.SetQuaternionQuat(q)
 	} else {
 		// Constrained rotation around axisOfRotation (typically Y axis)
-		angle := float32(math.Atan2(float64(dir.X), float64(dir.Z)))
-		g3nAxis := math32.Vector3{X: axis.X, Y: axis.Y, Z: axis.Z}
+		angle := float64(math.Atan2(float64(dir.X), float64(dir.Z)))
+		g3nAxis := math32.Vector3{X: float32(axis.X), Y: float32(axis.Y), Z: float32(axis.Z)}
 		g3nAxis.Normalize()
 		q := math32.NewQuaternion(0, 0, 0, 1)
-		q.SetFromAxisAngle(&g3nAxis, angle)
+		q.SetFromAxisAngle(&g3nAxis, float32(angle))
 		g3nNode.SetQuaternionQuat(q)
 	}
 }
 
 func toColor(c *vec.SFColor) *math32.Color {
-	return &math32.Color{R: c.R, G: c.G, B: c.B}
+	return &math32.Color{R: float32(c.R), G: float32(c.G), B: float32(c.B)}
 }
 
 // GetViewpoint searches for the first Viewpoint node.
@@ -835,7 +835,7 @@ func convertIndexedLineSet(ils *node.IndexedLineSet, app *node.Appearance, paren
 
 	positions := math32.NewArrayF32(0, nPts*3)
 	for _, p := range ils.Coord.Point {
-		positions.Append(p.X, p.Y, p.Z)
+		positions.Append(float32(p.X), float32(p.Y), float32(p.Z))
 	}
 	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
 
@@ -849,16 +849,16 @@ func convertIndexedLineSet(ils *node.IndexedLineSet, app *node.Appearance, paren
 				ci = nColors - 1
 			}
 			c := ils.Color.Color[ci]
-			colors.Append(c.R, c.G, c.B)
+			colors.Append(float32(c.R), float32(c.G), float32(c.B))
 		}
 	} else {
-		var r, g, b float32 = 1, 1, 1
+		var r, g, b float64 = 1, 1, 1
 		if app != nil && app.Material != nil {
 			ec := app.Material.EmissiveColor
 			r, g, b = ec.R, ec.G, ec.B
 		}
 		for i := 0; i < nPts; i++ {
-			colors.Append(r, g, b)
+			colors.Append(float32(r), float32(g), float32(b))
 		}
 	}
 	geom.AddVBO(gls.NewVBO(colors).AddAttrib(gls.VertexColor))
@@ -896,7 +896,7 @@ func convertPointSet(ps *node.PointSet, app *node.Appearance, parent *core.Node)
 
 	positions := math32.NewArrayF32(0, len(ps.Coord.Point)*3)
 	for _, p := range ps.Coord.Point {
-		positions.Append(p.X, p.Y, p.Z)
+		positions.Append(float32(p.X), float32(p.Y), float32(p.Z))
 	}
 	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
 

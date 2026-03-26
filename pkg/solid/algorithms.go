@@ -58,9 +58,9 @@ func (r *IntersectRecord) GetType() int { return r.Type }
 // ---------------------------------------------------------------------------
 
 func GetDominantComp(n vec.SFVec3f) int {
-	ax := float32(math.Abs(float64(n.X)))
-	ay := float32(math.Abs(float64(n.Y)))
-	az := float32(math.Abs(float64(n.Z)))
+	ax := float64(math.Abs(float64(n.X)))
+	ay := float64(math.Abs(float64(n.Y)))
+	az := float64(math.Abs(float64(n.Z)))
 	if ax >= ay && ax >= az {
 		return 0
 	}
@@ -86,7 +86,7 @@ func Collinear(a, b, c vec.SFVec3f) bool {
 // Returns the parametric t value along v1->v2.
 // ---------------------------------------------------------------------------
 
-func IntersectsEdgeVertex(v1, v2, v3 vec.SFVec3f) (float32, bool) {
+func IntersectsEdgeVertex(v1, v2, v3 vec.SFVec3f) (float64, bool) {
 	r1 := v2.Sub(v1)
 	lenSq := r1.Dot(r1)
 	if lenSq == 0 {
@@ -125,8 +125,8 @@ func ContainsOnEdge(v1, v2, v3 vec.SFVec3f) bool {
 // Returns parametric values (t1, t2) and whether they intersect.
 // ---------------------------------------------------------------------------
 
-func IntersectsEdgeEdge(v1, v2, v3, v4 vec.SFVec3f, drop int) (t1, t2 float32, ok bool) {
-	var a1, a2, b1, b2, c1, c2 float32
+func IntersectsEdgeEdge(v1, v2, v3, v4 vec.SFVec3f, drop int) (t1, t2 float64, ok bool) {
+	var a1, a2, b1, b2, c1, c2 float64
 
 	switch drop {
 	case 0:
@@ -167,7 +167,7 @@ func IntersectsEdgeEdge(v1, v2, v3, v4 vec.SFVec3f, drop int) (t1, t2 float32, o
 // Tests if a 2D point is inside a 2D polygon. Returns true if inside.
 // ---------------------------------------------------------------------------
 
-func CrossingsTest(pgon [][2]float32, point [2]float32) bool {
+func CrossingsTest(pgon [][2]float64, point [2]float64) bool {
 	numverts := len(pgon)
 	if numverts == 0 {
 		return false
@@ -216,10 +216,10 @@ func (l *Loop) CheckForContainment(pt vec.SFVec3f, drop int) bool {
 		return false
 	}
 
-	var pgon [][2]float32
+	var pgon [][2]float64
 	l.ForEachHe(func(he *HalfEdge) bool {
 		v := he.Vertex.Loc
-		var p [2]float32
+		var p [2]float64
 		switch drop {
 		case 0:
 			p[0] = v.Y
@@ -235,7 +235,7 @@ func (l *Loop) CheckForContainment(pt vec.SFVec3f, drop int) bool {
 		return true
 	})
 
-	var pt2 [2]float32
+	var pt2 [2]float64
 	switch drop {
 	case 0:
 		pt2[0] = pt.Y
@@ -416,8 +416,8 @@ func (s *Solid) SweepWire(nFaces int) *Face {
 	}
 
 	angle := 2 * math.Pi / float64(nFaces)
-	cosA := float32(math.Cos(angle))
-	sinA := float32(math.Sin(angle))
+	cosA := float64(math.Cos(angle))
+	sinA := float64(math.Sin(angle))
 
 	rotate := func(v vec.SFVec3f) vec.SFVec3f {
 		return vec.SFVec3f{
@@ -478,11 +478,11 @@ func (s *Solid) SweepWire(nFaces int) *Face {
 // Twist applies a twist deformation to all vertices.
 // ---------------------------------------------------------------------------
 
-func (s *Solid) Twist(fn func(float32) float32) {
+func (s *Solid) Twist(fn func(float64) float64) {
 	for v := s.Verts; v != nil; v = v.Next {
 		z := fn(v.Loc.Z)
-		cosZ := float32(math.Cos(float64(z)))
-		sinZ := float32(math.Sin(float64(z)))
+		cosZ := float64(math.Cos(float64(z)))
+		sinZ := float64(math.Sin(float64(z)))
 		x := v.Loc.X
 		y := v.Loc.Y
 		v.Loc.X = x*cosZ - y*sinZ
@@ -745,15 +745,15 @@ func (s *Solid) Verify() bool {
 // Arc creates arc geometry via mev operators.
 // ---------------------------------------------------------------------------
 
-func (s *Solid) Arc(face *Face, startVertex *Vertex, cx, cy, radius, height, startAngle, endAngle float32, steps int) {
+func (s *Solid) Arc(face *Face, startVertex *Vertex, cx, cy, radius, height, startAngle, endAngle float64, steps int) {
 	angle := float64(startAngle) * math.Pi / 180.0
 	stepSize := float64(endAngle-startAngle) * math.Pi / (180.0 * float64(steps))
 
 	prevHe := startVertex.He
 	for i := 0; i < steps; i++ {
 		angle += stepSize
-		x := cx + float32(math.Cos(angle))*radius
-		y := cy + float32(math.Sin(angle))*radius
+		x := cx + float64(math.Cos(angle))*radius
+		y := cy + float64(math.Sin(angle))*radius
 		Lmev(prevHe, vec.SFVec3f{X: x, Y: y, Z: height})
 		prevHe = prevHe.Prev
 	}

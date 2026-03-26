@@ -36,7 +36,7 @@ func makeCube() *solid.Solid {
 		{X: 1, Y: -1, Z: 1},
 		{X: -1, Y: -1, Z: 1},
 	}
-	indices := []int32{0, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, 3, -1}
 	color := vec.SFColor{R: 0.8, G: 0.2, B: 0.2, A: 1}
 	s := solid.BuildFromIndexSet(positions, indices, color)
 	if s == nil {
@@ -54,7 +54,7 @@ func makeTrianglePrism() *solid.Solid {
 		{X: 1, Y: -1, Z: 1},
 		{X: -1, Y: -1, Z: 1},
 	}
-	indices := []int32{0, 1, 2, -1}
+	indices := []int64{0, 1, 2, -1}
 	color := vec.SFColor{R: 0.2, G: 0.6, B: 0.8, A: 1}
 	s := solid.BuildFromIndexSet(positions, indices, color)
 	if s == nil {
@@ -219,15 +219,15 @@ func main() {
 	// ── Plane 1: tilted 25° from Z toward X (green, diagonal cut) ──
 	tilt1Deg := 25.0
 	tilt1Rad := tilt1Deg * math.Pi / 180.0
-	n1x := float32(math.Sin(tilt1Rad))
-	n1z := float32(math.Cos(tilt1Rad))
+	n1x := float64(math.Sin(tilt1Rad))
+	n1z := float64(math.Cos(tilt1Rad))
 	plane1 := solid.Plane{Normal: vec.SFVec3f{X: n1x, Y: 0, Z: n1z}, D: 0}
 
 	// ── Plane 2: tilted 30° from Y toward X (red, perpendicular-ish cut) ──
 	tilt2Deg := 30.0
 	tilt2Rad := tilt2Deg * math.Pi / 180.0
-	n2x := float32(math.Sin(tilt2Rad))
-	n2y := float32(math.Cos(tilt2Rad))
+	n2x := float64(math.Sin(tilt2Rad))
+	n2y := float64(math.Cos(tilt2Rad))
 	plane2 := solid.Plane{Normal: vec.SFVec3f{X: n2x, Y: n2y, Z: 0}, D: 0}
 
 	// ── Plane 3: Y=0 (blue, horizontal cut) ──
@@ -320,8 +320,8 @@ func main() {
 		quarters: quarters,
 		octants:  octants,
 		oValid:   oValid,
-		n1x: n1x, n1z: n1z, tilt1Rad: float32(tilt1Rad),
-		n2x: n2x, n2y: n2y, tilt2Rad: float32(tilt2Rad),
+		n1x: n1x, n1z: n1z, tilt1Rad: float64(tilt1Rad),
+		n2x: n2x, n2y: n2y, tilt2Rad: float64(tilt2Rad),
 	}
 	if err := writeAnimatedSplit(outPath, params); err != nil {
 		fmt.Fprintf(os.Stderr, "  export error: %v\n", err)
@@ -340,8 +340,8 @@ type animParams struct {
 	quarters             []*solid.Solid // [4]
 	octants              []*solid.Solid // [8]
 	oValid               [8]bool
-	n1x, n1z, tilt1Rad   float32
-	n2x, n2y, tilt2Rad   float32
+	n1x, n1z, tilt1Rad   float64
+	n2x, n2y, tilt2Rad   float64
 }
 
 // writeAnimatedSplit creates a VRML97 three-stage animated split demo.
@@ -384,11 +384,11 @@ func writeAnimatedSplit(path string, p animParams) error {
 	wf := func(format string, args ...any) { fmt.Fprintf(f, format+"\n", args...) }
 
 	// Separation vectors.
-	sep1 := float32(1.5)
+	sep1 := float64(1.5)
 	h1End := vec.SFVec3f{X: -p.n1x * sep1, Y: 0, Z: -p.n1z * sep1}
 	h2End := vec.SFVec3f{X: p.n1x * sep1, Y: 0, Z: p.n1z * sep1}
 
-	sep2 := float32(1.2)
+	sep2 := float64(1.2)
 	q_up := vec.SFVec3f{X: p.n2x * sep2, Y: p.n2y * sep2, Z: 0}
 	q_dn := vec.SFVec3f{X: -p.n2x * sep2, Y: -p.n2y * sep2, Z: 0}
 
@@ -401,7 +401,7 @@ func writeAnimatedSplit(path string, p animParams) error {
 	}
 
 	// Octant separation: +Y or -Y from parent quarter.
-	sep3 := float32(0.8)
+	sep3 := float64(0.8)
 	oUp := vec.SFVec3f{X: 0, Y: sep3, Z: 0}
 	oDn := vec.SFVec3f{X: 0, Y: -sep3, Z: 0}
 

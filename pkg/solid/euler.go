@@ -442,7 +442,7 @@ func Mef(s *Solid, v1, v2 *Vertex) (*Face, *Edge) {
 }
 
 // Smev is a convenience: Split vertex, Make Edge Vertex by index.
-func Smev(s *Solid, vertIdx uint32, loc vec.SFVec3f) (*Vertex, *Edge) {
+func Smev(s *Solid, vertIdx uint64, loc vec.SFVec3f) (*Vertex, *Edge) {
 	v := s.FindVertex(vertIdx)
 	if v == nil {
 		return nil, nil
@@ -451,7 +451,7 @@ func Smev(s *Solid, vertIdx uint32, loc vec.SFVec3f) (*Vertex, *Edge) {
 }
 
 // Smef is a convenience: Make Edge Face by vertex indices.
-func Smef(s *Solid, idx1, idx2 uint32) (*Face, *Edge) {
+func Smef(s *Solid, idx1, idx2 uint64) (*Face, *Edge) {
 	v1 := s.FindVertex(idx1)
 	v2 := s.FindVertex(idx2)
 	if v1 == nil || v2 == nil {
@@ -466,18 +466,18 @@ func Smef(s *Solid, idx1, idx2 uint32) (*Face, *Edge) {
 
 // BuildFromIndexSet constructs a solid from vertex positions and face indices.
 // indices uses -1 as a face separator (VRML convention).
-func BuildFromIndexSet(positions []vec.SFVec3f, indices []int32, color vec.SFColor) *Solid {
+func BuildFromIndexSet(positions []vec.SFVec3f, indices []int64, color vec.SFColor) *Solid {
 	if len(positions) == 0 || len(indices) == 0 {
 		return nil
 	}
 
 	// Parse face index lists.
-	var faces [][]int32
-	var cur []int32
+	var faces [][]int64
+	var cur []int64
 	for _, idx := range indices {
 		if idx == -1 {
 			if len(cur) >= 3 {
-				faces = append(faces, append([]int32{}, cur...))
+				faces = append(faces, append([]int64{}, cur...))
 			}
 			cur = cur[:0]
 		} else {
@@ -485,7 +485,7 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int32, color vec.SFCol
 		}
 	}
 	if len(cur) >= 3 {
-		faces = append(faces, append([]int32{}, cur...))
+		faces = append(faces, append([]int64{}, cur...))
 	}
 	if len(faces) == 0 {
 		return nil
@@ -528,7 +528,7 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int32, color vec.SFCol
 	return s
 }
 
-func buildFace(s *Solid, verts []*Vertex, indices []int32) {
+func buildFace(s *Solid, verts []*Vertex, indices []int64) {
 	_ = s
 	if len(indices) < 3 {
 		return
@@ -542,7 +542,7 @@ func buildFace(s *Solid, verts []*Vertex, indices []int32) {
 }
 
 // MarkCreases marks edges as creases based on the crease angle.
-func MarkCreases(s *Solid, creaseAngle float32) {
+func MarkCreases(s *Solid, creaseAngle float64) {
 	for e := s.Edges; e != nil; e = e.Next {
 		f1 := e.He1.GetFace()
 		f2 := e.He2.GetFace()
@@ -550,7 +550,7 @@ func MarkCreases(s *Solid, creaseAngle float32) {
 			continue
 		}
 		dot := f1.Normal.Dot(f2.Normal)
-		if dot < float32(1.0)-creaseAngle {
+		if dot < float64(1.0)-creaseAngle {
 			e.Mark |= CREASE
 		}
 	}

@@ -92,7 +92,7 @@ func main() {
 	cam := camera.New(1)
 	vp := converter.GetViewpoint(vrmlNodes)
 	if vp != nil {
-		cam.SetPosition(vp.Position.X, vp.Position.Y, vp.Position.Z)
+		cam.SetPosition(float32(vp.Position.X), float32(vp.Position.Y), float32(vp.Position.Z))
 		cam.SetFov(float32(float64(vp.FieldOfView) * 180.0 / math.Pi))
 	} else {
 		cam.SetPosition(0, 2, 10)
@@ -107,9 +107,9 @@ func main() {
 	nav := converter.GetNavigationInfo(vrmlNodes)
 	if nav != nil {
 		// Speed scales zoom and pan
-		oc.ZoomSpeed = nav.Speed * 0.1
-		oc.KeyPanSpeed = nav.Speed * 35.0
-		oc.KeyZoomSpeed = nav.Speed * 2.0
+		oc.ZoomSpeed = float32(nav.Speed * 0.1)
+		oc.KeyPanSpeed = float32(nav.Speed * 35.0)
+		oc.KeyZoomSpeed = float32(nav.Speed * 2.0)
 
 		// Type controls enabled interactions
 		navType := "WALK"
@@ -129,7 +129,7 @@ func main() {
 
 		// VisibilityLimit → MaxDistance
 		if nav.VisibilityLimit > 0 {
-			oc.MaxDistance = nav.VisibilityLimit
+			oc.MaxDistance = float32(nav.VisibilityLimit)
 		}
 	}
 
@@ -149,7 +149,7 @@ func main() {
 				return
 			}
 			picker.SimTime = br.SimTime()
-			if picker.HandlePointer(mev.Xpos, mev.Ypos, traverser.PointerDown) {
+			if picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerDown) {
 				fmt.Fprintf(os.Stderr, "Pick hit at (%.0f, %.0f)\n", mev.Xpos, mev.Ypos)
 			}
 		})
@@ -159,12 +159,12 @@ func main() {
 				return
 			}
 			picker.SimTime = br.SimTime()
-			picker.HandlePointer(mev.Xpos, mev.Ypos, traverser.PointerUp)
+			picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerUp)
 		})
 		a.Subscribe(window.OnCursor, func(evname string, ev interface{}) {
 			cev := ev.(*window.CursorEvent)
 			picker.SimTime = br.SimTime()
-			picker.HandlePointer(cev.Xpos, cev.Ypos, traverser.PointerMove)
+			picker.HandlePointer(float64(cev.Xpos), float64(cev.Ypos), traverser.PointerMove)
 		})
 		fmt.Fprintf(os.Stderr, "Mouse picking enabled for sensor interaction\n")
 	}
@@ -195,7 +195,7 @@ func main() {
 	bg := converter.GetBackground(vrmlNodes)
 	if bg != nil && len(bg.SkyColor) > 0 {
 		c := bg.SkyColor[0]
-		a.Gls().ClearColor(c.R, c.G, c.B, 1.0)
+		a.Gls().ClearColor(float32(c.R), float32(c.G), float32(c.B), 1.0)
 	} else {
 		a.Gls().ClearColor(0.2, 0.2, 0.3, 1.0)
 	}
@@ -204,7 +204,7 @@ func main() {
 	onResize := func(evname string, ev interface{}) {
 		fbW, fbH := a.GetFramebufferSize()
 		a.Gls().Viewport(0, 0, int32(fbW), int32(fbH))
-		cam.SetAspect(float32(fbW) / float32(fbH))
+		cam.SetAspect(float32(float64(fbW) / float64(fbH)))
 		// Picker uses window coordinates (mouse events), not framebuffer size
 		wW, wH := a.GetSize()
 		picker.SetSize(wW, wH)
@@ -218,7 +218,7 @@ func main() {
 	a.Run(func(rend *renderer.Renderer, deltaTime time.Duration) {
 		// Get camera position for action traverser
 		camPos := cam.Position()
-		viewerPos := vec.SFVec3f{X: camPos.X, Y: camPos.Y, Z: camPos.Z}
+		viewerPos := vec.SFVec3f{X: float64(camPos.X), Y: float64(camPos.Y), Z: float64(camPos.Z)}
 
 		// Process action traverser (ProximitySensors, LOD distance, etc.)
 		at.Update(viewerPos, br.SimTime())

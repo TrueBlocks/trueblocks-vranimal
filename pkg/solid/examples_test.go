@@ -74,7 +74,7 @@ func TestGenerateExamples(t *testing.T) {
 	t.Run("showcase", func(t *testing.T) {
 		solids := make([]*Solid, 0, len(tests))
 		translations := make([]vec.SFVec3f, 0, len(tests))
-		xOffset := float32(-12)
+		xOffset := float64(-12)
 		for _, tt := range tests {
 			s := tt.build()
 			if s == nil {
