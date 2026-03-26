@@ -1,7 +1,8 @@
 # Executables
-vrml-fmt
-vrml-validate
-vrml-serialize
-viewer
+/vrml-fmt
+/vrml-validate
+/vrml-serialize
+/viewer
 /solid-demo
 /bool-demo
+/bool-viz

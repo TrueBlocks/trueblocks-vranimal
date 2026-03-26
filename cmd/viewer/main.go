@@ -66,6 +66,13 @@ func main() {
 	a := app.App()
 	scene := core.NewNode()
 
+	// Maximize window on startup
+	if gw, ok := a.IWindow.(*window.GlfwWindow); ok {
+		w, h := gw.ScreenResolution(nil)
+		gw.SetSize(w, h)
+		gw.SetPos(0, 0)
+	}
+
 	// Convert VRML scene to g3n (returns node map for animation)
 	nodeMap := converter.Convert(vrmlNodes, scene, baseDir)
 
