@@ -432,12 +432,14 @@ func (s *Solid) SweepWire(nFaces int) *Face {
 		return nil
 	}
 
-	// Find one end of the wire
-	for first.Edge != nil && first.Edge == first.Next.Edge {
+	// Find one end of the wire: advance while consecutive edges differ,
+	// stop when they match (the turn-around point).
+	for first.Edge != first.Next.Edge {
 		first = first.Next
 	}
 	last := first.Next
-	for last.Edge != nil && last.Edge == last.Next.Edge {
+	// Find the other end of the wire.
+	for last.Edge != last.Next.Edge {
 		last = last.Next
 	}
 

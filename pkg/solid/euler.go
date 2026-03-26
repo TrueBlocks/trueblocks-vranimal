@@ -169,6 +169,8 @@ func Lmef(he1, he2 *HalfEdge) (*Face, *Edge) {
 }
 
 // Lkev kills an edge and vertex, merging two vertices (Low Kill Edge Vertex).
+// he.Vertex is killed; its mate's vertex survives. All half-edges that
+// referenced the killed vertex are redirected to the surviving vertex.
 func Lkev(he *HalfEdge) {
 	if he.Edge == nil {
 		return
@@ -177,17 +179,43 @@ func Lkev(he *HalfEdge) {
 	e := he.Edge
 	mate := he.GetMate()
 
-	// The vertex to keep is mate.Vertex, vertex to kill is he.Vertex
 	killV := he.Vertex
+	keepV := mate.Vertex
 
-	// Remove he from its loop
+	// Walk the vertex orbit of killV, reassigning all half-edges to keepV.
+	// Only reassign half-edges that actually reference killV.
+	cur := mate.Next
+	for cur != he {
+		if cur.Vertex != killV {
+			break
+		}
+		cur.Vertex = keepV
+		m := cur.GetMate()
+		if m == nil {
+			break
+		}
+		cur = m.Next
+	}
+
+	// Update surviving vertex's half-edge reference.
+	if he.Prev == mate {
+		// Null strut: he and mate are adjacent.
+		keepV.He = mate.Next.Next
+	} else {
+		keepV.He = mate.Next
+	}
+	if keepV.He != nil && keepV.He.Edge == nil {
+		keepV.He = nil
+	}
+
+	// Remove he from its loop.
 	he.Prev.Next = he.Next
 	he.Next.Prev = he.Prev
 	if he.Loop.HalfEdges == he {
 		he.Loop.HalfEdges = he.Next
 	}
 
-	// Remove mate from its loop
+	// Remove mate from its loop.
 	if mate != nil && mate != he {
 		mate.Prev.Next = mate.Next
 		mate.Next.Prev = mate.Prev
@@ -201,6 +229,7 @@ func Lkev(he *HalfEdge) {
 }
 
 // Lkef kills an edge and face, merging two faces (Low Kill Edge Face).
+// he's face survives; he's mate's face is killed.
 func Lkef(he *HalfEdge) {
 	if he.Edge == nil {
 		return
@@ -208,24 +237,57 @@ func Lkef(he *HalfEdge) {
 	s := he.GetFace().Solid
 	e := he.Edge
 	mate := he.GetMate()
+	keepF := he.GetFace()
 	killF := mate.GetFace()
 
-	// Join the two loops by removing the shared edge
+	// Move all loops from the killed face to the keeping face.
+	if killF != keepF {
+		for l := killF.LoopOut; l != nil; l = killF.LoopOut {
+			killF.RemoveLoop(l)
+			keepF.AddLoop(l, false)
+		}
+	}
+
+	// Reassign all half-edges in the killed loop to the keeping loop.
+	keepLoop := he.Loop
+	killLoop := mate.Loop
+	cur := mate
+	for {
+		cur.Loop = keepLoop
+		cur = cur.Next
+		if cur == mate {
+			break
+		}
+	}
+
+	// Splice out he and mate, joining the two loops into one ring.
 	he.Prev.Next = mate.Next
 	mate.Next.Prev = he.Prev
 	mate.Prev.Next = he.Next
 	he.Next.Prev = mate.Prev
 
-	// Reassign loop of all half-edges in killed face to keeping face
-	nl := he.Loop
-	for cur := mate.Next; cur != he.Next; cur = cur.Next {
-		cur.Loop = nl
+	// Update vertex half-edge references (they might point to removed HEs).
+	v1 := he.Vertex
+	v2 := mate.Vertex
+	v1.He = mate.Next
+	if v1.He != nil && v1.He.Edge == nil {
+		v1.He = nil
+	}
+	v2.He = he.Next
+	if v2.He != nil && v2.He.Edge == nil {
+		v2.He = nil
 	}
 
-	nl.SetFirstHe(he.Prev)
+	keepLoop.SetFirstHe(he.Prev)
+
+	// Remove the now-empty killed loop from the keeping face.
+	killLoop.HalfEdges = nil
+	keepF.RemoveLoop(killLoop)
 
 	s.RemoveEdge(e)
-	s.RemoveFace(killF)
+	if killF != keepF {
+		s.RemoveFace(killF)
+	}
 }
 
 // Lkemr kills an edge, creating a new inner ring (Kill Edge Make Ring).
@@ -266,6 +328,8 @@ func Lkemr(he *HalfEdge) {
 }
 
 // Lmekr makes an edge, killing an inner ring (Make Edge Kill Ring).
+// he1 and he2 are in different loops of the same face. A new edge
+// connecting he1.Vertex and he2.Vertex joins the two loops into one.
 func Lmekr(he1, he2 *HalfEdge) *Edge {
 	s := he1.GetFace().Solid
 	ne := NewEdge()
@@ -278,16 +342,21 @@ func Lmekr(he1, he2 *HalfEdge) *Edge {
 	nhe1.Edge = ne
 	nhe2.Edge = ne
 
-	// Insert nhe1 before he1
+	// Save prev pointers before any splicing.
+	he1prev := he1.Prev
+	he2prev := he2.Prev
+
+	// Splice: nhe1 bridges from loop2's tail to loop1's head.
+	// nhe2 bridges from loop1's tail to loop2's head.
+	// Result: ...he2prev → nhe1 → he1 → ... → he1prev → nhe2 → he2 → ... → he2prev...
+	nhe1.Prev = he2prev
 	nhe1.Next = he1
-	nhe1.Prev = he2.Prev
-	he2.Prev.Next = nhe1
+	he2prev.Next = nhe1
 	he1.Prev = nhe1
 
-	// Insert nhe2 before he2
+	nhe2.Prev = he1prev
 	nhe2.Next = he2
-	nhe2.Prev = he1.Prev
-	he1.Prev.Next = nhe2
+	he1prev.Next = nhe2
 	he2.Prev = nhe2
 
 	// All half-edges now in one loop
