@@ -282,6 +282,10 @@ func Lkef(he *HalfEdge) {
 	keepLoop.SetFirstHe(he.Prev)
 
 	// Remove the now-empty killed loop from the keeping face.
+	// If the killed loop was the outer loop, reassign to the surviving loop.
+	if keepF.LoopOut == killLoop {
+		keepF.LoopOut = keepLoop
+	}
 	killLoop.HalfEdges = nil
 	keepF.RemoveLoop(killLoop)
 
