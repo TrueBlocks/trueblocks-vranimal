@@ -242,7 +242,8 @@ func Lkef(he *HalfEdge) {
 
 	// Move all loops from the killed face to the keeping face.
 	if killF != keepF {
-		for l := killF.LoopOut; l != nil; l = killF.LoopOut {
+		for len(killF.Loops) > 0 {
+			l := killF.Loops[0]
 			killF.RemoveLoop(l)
 			keepF.AddLoop(l, false)
 		}
@@ -360,6 +361,7 @@ func Lmekr(he1, he2 *HalfEdge) *Edge {
 	he2.Prev = nhe2
 
 	// All half-edges now in one loop
+	killLoop := he2.Loop // save before reassignment overwrites it
 	cur := nhe1
 	for {
 		cur.Loop = he1.Loop
@@ -371,8 +373,8 @@ func Lmekr(he1, he2 *HalfEdge) *Edge {
 
 	// Remove the inner loop from the face
 	f := he1.GetFace()
-	if he2.Loop != he1.Loop {
-		f.RemoveLoop(he2.Loop)
+	if killLoop != he1.Loop {
+		f.RemoveLoop(killLoop)
 	}
 
 	he1.Loop.SetFirstHe(nhe1)

@@ -609,14 +609,17 @@ func (s *Solid) MoveFace(f *Face, target *Solid) {
 
 	f.Mark2 = VISITED
 
-	s.RemoveFace(f)
+	// Remove from the face's own solid (which may differ from s
+	// when null edges connect faces across two solids).
+	owner := f.Solid
+	owner.RemoveFace(f)
 	target.AddFace(f)
 
 	for _, l := range f.Loops {
 		l.ForEachHe(func(he *HalfEdge) bool {
 			mf := he.GetMateFace()
 			if mf != nil && mf.Solid != target {
-				s.MoveFace(mf, target)
+				mf.Solid.MoveFace(mf, target)
 			}
 			return true
 		})

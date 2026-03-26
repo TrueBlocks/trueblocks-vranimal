@@ -376,34 +376,19 @@ func (br *BoolopRecord) lastDitchDisjoint() bool {
 	return false
 }
 
-// ---------------------------------------------------------------------------
-// Classify / Connect / Finish — stubs for issue #33.
-// ---------------------------------------------------------------------------
-
-// Classify is Phase 2: classify regions of each solid as IN/OUT/ON relative
-// to the other solid. Returns true if intersections were found and classified.
-// TODO(#33): implement Classify.
-func (br *BoolopRecord) Classify() bool {
-	return false
-}
-
-// Connect is Phase 3: build the connectivity graph for the result solid.
-// TODO(#33): implement Connect.
-func (br *BoolopRecord) Connect() {
-}
-
-// Finish is Phase 4: construct the final result solid by selecting faces
-// based on the boolean operation type.
-// TODO(#33): implement Finish.
-func (br *BoolopRecord) Finish() {
-}
+// Classify, Connect, and Finish are implemented in:
+//   bool_classify.go  — Phase 2: classify regions as IN/OUT/ON, insert null edges.
+//   bool_connect.go   — Phase 3: sort null edges, match loose ends, join/cut.
+//   bool_finish.go    — Phase 4: build result solid from paired faces.
 
 // Complete runs post-operation cleanup: renumber indices and remove
 // coplanar/collinear degeneracies.
 func (br *BoolopRecord) Complete() {
 	if br.Result != nil {
 		br.Result.Renumber()
-		br.Result.RemoveCoplaneColine()
+		// Note: C++ RemoveCoplaneColine is a no-op stub (just returns).
+		// The Go implementation can cause iterator invalidation on
+		// boolean results.  Skip it here to match C++ behavior.
 	}
 }
 
