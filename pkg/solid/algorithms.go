@@ -527,12 +527,17 @@ func (s *Solid) LoopGlue(f *Face) {
 	Lmekr(h1, h2)
 	Lkev(h1.Prev)
 
+	limit := 10000
 	for h1.Next != h2 {
 		h1next := h1.Next
 		Lmef(h1.Next, h1.Prev)
 		Lkev(h1.Next)
 		Lkef(h1.GetMate())
 		h1 = h1next
+		limit--
+		if limit <= 0 {
+			return
+		}
 	}
 
 	Lkef(h1.GetMate())

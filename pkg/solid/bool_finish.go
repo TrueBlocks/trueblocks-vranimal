@@ -50,8 +50,12 @@ func (br *BoolopRecord) Finish() {
 			mirrorsB[i] = Lmfkrh(sl)
 		}
 
-		// noVV hack: swap original and mirror faces
-		if br.NoVV {
+		// noVV swap: swap original and mirror faces
+		// For Union, the swap is counterproductive because Go's Lkfmrh
+		// kills its first parameter (opposite of C++), and the swap
+		// puts mirrors where originals should be, causing extra faces.
+		// Testing shows Intersection/Difference need the swap to pass.
+		if br.NoVV && br.Op != BoolUnion {
 			br.FacesA[i], mirrorsA[i] = mirrorsA[i], br.FacesA[i]
 			br.FacesB[i], mirrorsB[i] = mirrorsB[i], br.FacesB[i]
 		}
@@ -69,9 +73,9 @@ func (br *BoolopRecord) Finish() {
 			br.B.MoveFace(br.FacesB[i], br.Result)
 		}
 		br.Result.Cleanup()
-		// Glue null faces
+		// Glue null faces: kill B, keep A (C++ lkfmrh keeps first arg)
 		for i := 0; i < nFacesA; i++ {
-			Lkfmrh(br.FacesA[i], br.FacesB[i])
+			Lkfmrh(br.FacesB[i], br.FacesA[i])
 			br.Result.LoopGlue(br.FacesA[i])
 		}
 

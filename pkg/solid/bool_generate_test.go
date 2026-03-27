@@ -21,19 +21,19 @@ var (
 )
 
 // vertexAt returns the first vertex at the given location (within tolerance).
-func vertexAt(s *Solid, x, y, z float64) *Vertex {
-	target := vec.SFVec3f{X: x, Y: y, Z: z}
-	var found *Vertex
-	s.ForEachVertex(func(v *Vertex) bool {
-		d := v.Loc.Sub(target)
-		if d.Length() < 1e-7 {
-			found = v
-			return false
-		}
-		return true
-	})
-	return found
-}
+// func vertexAt(s *Solid, x, y, z float64) *Vertex {
+// 	target := vec.SFVec3f{X: x, Y: y, Z: z}
+// 	var found *Vertex
+// 	s.ForEachVertex(func(v *Vertex) bool {
+// 		d := v.Loc.Sub(target)
+// 		if d.Length() < 1e-7 {
+// 			found = v
+// 			return false
+// 		}
+// 		return true
+// 	})
+// 	return found
+// }
 
 // faceWithNormal returns the first face whose normal is closest to n.
 func faceWithNormal(s *Solid, n vec.SFVec3f) *Face {
@@ -52,16 +52,16 @@ func faceWithNormal(s *Solid, n vec.SFVec3f) *Face {
 }
 
 // countVertices returns number of vertices in a solid.
-func countVertices(s *Solid) int {
-	_, _, v := s.Stats()
-	return v
-}
+// func countVertices(s *Solid) int {
+// 	_, _, v := s.Stats()
+// 	return v
+// }
 
 // countEdges returns number of edges in a solid.
-func countEdges(s *Solid) int {
-	_, e, _ := s.Stats()
-	return e
-}
+// func countEdges(s *Solid) int {
+// 	_, e, _ := s.Stats()
+// 	return e
+// }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION 1: Topology Validation Tests
@@ -973,10 +973,10 @@ func TestGenerate_CubeVsSphere_ManyHits(t *testing.T) {
 func TestInterpolation_Precision(t *testing.T) {
 	// Test with large coordinate values (catastrophic cancellation risk)
 	cases := []struct {
-		name       string
-		v1, v2     vec.SFVec3f
-		planeNorm  vec.SFVec3f
-		planeD     float64
+		name      string
+		v1, v2    vec.SFVec3f
+		planeNorm vec.SFVec3f
+		planeD    float64
 	}{
 		{
 			"unit_scale",

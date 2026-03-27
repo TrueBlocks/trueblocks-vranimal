@@ -161,40 +161,21 @@ func boolTestCase(t *testing.T, name string, makeA, makeB func() *Solid) {
 // knownFailingBoolTests lists subtests that fail due to unresolved Euler/LoopOut
 // errors in the boolean pipeline. See issue #37 for details and fix strategy.
 var knownFailingBoolTests = map[string]bool{
-	// Group 0–2: "through" Union (B passes fully through A — two intersection zones)
-	"TestBool_Group0_CubeVsScaledCube/Case6_through/Union":          true,
-	"TestBool_Group1_CubeVsRotatedScaledCube/Case6_through/Union":   true,
-	"TestBool_Group2_CubeVsRotCenterScaledCube/Case6_through/Union": true,
-
 	// Group 3: rotated elongated cube — Union only
-	"TestBool_Group3_CubeVsRotatedElongatedCube/Case1_approaching_face/Union":     true,
-	"TestBool_Group3_CubeVsRotatedElongatedCube/Case3_aligned_face_on_face/Union": true,
-	"TestBool_Group3_CubeVsRotatedElongatedCube/Case5_steep_opposite/Union":       true,
-	"TestBool_Group3_CubeVsRotatedElongatedCube/Case6_nearly_parallel/Union":      true,
+	// (Groups 0–2 through/Union now passing after NoVV fix)
 
-	// Group 4: wide rotated elongated cube — Union and Difference
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case1_approaching_face/Union":          true,
+	// Group 4: wide rotated elongated cube — Difference only (Union now passing)
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case1_approaching_face/Difference":     true,
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case2_shallow_angle/Union":             true,
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case2_shallow_angle/Difference":        true,
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case3_aligned_face_on_face/Union":      true,
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case3_aligned_face_on_face/Difference": true,
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case4_shallow_opposite/Union":          true,
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case4_shallow_opposite/Difference":     true,
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case5_steep_opposite/Union":            true,
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case5_steep_opposite/Difference":       true,
-	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case6_nearly_parallel/Union":           true,
 	"TestBool_Group4_CubeVsWideRotatedElongatedCube/Case6_nearly_parallel/Difference":      true,
 
-	// Group 5: cube vs sphere — Union (plus all ops for largest sphere)
-	"TestBool_Group5_CubeVsSphere/Case0_coarse_sphere/Union":           true,
-	"TestBool_Group5_CubeVsSphere/Case1_medium_sphere/Union":           true,
-	"TestBool_Group5_CubeVsSphere/Case2_fine_sphere/Union":             true,
-	"TestBool_Group5_CubeVsSphere/Case3_highres_sphere/Union":          true,
-	"TestBool_Group5_CubeVsSphere/Case4_large_sphere_containing/Union": true,
-	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Union":          true,
-	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Intersection":   true,
-	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Difference":     true,
+	// Group 5: cube vs sphere — largest sphere all ops (smaller sphere Union now passing)
+	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Union":        true,
+	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Intersection": true,
+	"TestBool_Group5_CubeVsSphere/Case6_largest_sphere/Difference":   true,
 
 	// Group 6: same-size cube — VV contact cases
 	"TestBool_Group6_CubeVsSameSizeCube/Case1_partial_face_overlap/Union":        true,
@@ -222,8 +203,6 @@ var knownFailingBoolTests = map[string]bool{
 	"TestBool_Group9_CubeVsRotatedCube/Case0_same_size_half_overlap/Union":        true,
 	"TestBool_Group9_CubeVsRotatedCube/Case0_same_size_half_overlap/Intersection": true,
 	"TestBool_Group9_CubeVsRotatedCube/Case0_same_size_half_overlap/Difference":   true,
-	"TestBool_Group9_CubeVsRotatedCube/Case4_half_size_tall/Union":                true,
-	"TestBool_Group9_CubeVsRotatedCube/Case5_half_size_wide_tall/Union":           true,
 
 	// Group 10: hexagon prisms — single representative case (C++ had 7 identical)
 	"TestBool_Group10_HexagonPrisms/Case0_overlapping/Union": true,

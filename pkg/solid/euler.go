@@ -253,10 +253,12 @@ func Lkef(he *HalfEdge) {
 	keepLoop := he.Loop
 	killLoop := mate.Loop
 	cur := mate
+	limit := 10000
 	for {
 		cur.Loop = keepLoop
 		cur = cur.Next
-		if cur == mate {
+		limit--
+		if cur == mate || limit <= 0 {
 			break
 		}
 	}
