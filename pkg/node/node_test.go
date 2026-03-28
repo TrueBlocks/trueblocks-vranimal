@@ -1,10 +1,21 @@
 package node
 
 import (
+	"math"
 	"testing"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
+
+const eps = 1e-5
+
+func approx(a, b float64) bool {
+	d := a - b
+	if d < 0 {
+		d = -d
+	}
+	return d < eps
+}
 
 // ---------------------------------------------------------------------------
 // BaseNode
@@ -352,5 +363,252 @@ func TestNewFontStyle_Defaults(t *testing.T) {
 	fs := NewFontStyle()
 	if fs.Size != 1 {
 		t.Fatalf("size = %g", fs.Size)
+	}
+}
+
+// ===========================================================================
+// Gap-filling tests (issue #47)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Transform.GetLocalMatrix — combined transforms
+// ---------------------------------------------------------------------------
+
+func TestTransform_GetLocalMatrix_Rotation(t *testing.T) {
+	tr := NewTransform()
+	tr.Rotation = vec.NewRotation(0, 1, 0, math.Pi/2)
+	m := tr.GetLocalMatrix()
+	// Rotate X-axis 90° around Y → should become -Z
+	p := m.TransformPoint(vec.XAxis)
+	if !approx(p.X, 0) || !approx(p.Y, 0) || !approx(p.Z, -1) {
+		t.Fatalf("Y-rot 90° of X: got %v, want (0,0,-1)", p)
+	}
+}
+
+func TestTransform_GetLocalMatrix_Scale(t *testing.T) {
+	tr := NewTransform()
+	tr.Scale = vec.SFVec3f{X: 2, Y: 3, Z: 4}
+	m := tr.GetLocalMatrix()
+	p := m.TransformPoint(vec.SFVec3f{X: 1, Y: 1, Z: 1})
+	if !approx(p.X, 2) || !approx(p.Y, 3) || !approx(p.Z, 4) {
+		t.Fatalf("scale (2,3,4) of (1,1,1): got %v", p)
+	}
+}
+
+func TestTransform_GetLocalMatrix_TranslateAndScale(t *testing.T) {
+	tr := NewTransform()
+	tr.Translation = vec.SFVec3f{X: 10, Y: 0, Z: 0}
+	tr.Scale = vec.SFVec3f{X: 2, Y: 2, Z: 2}
+	m := tr.GetLocalMatrix()
+	p := m.TransformPoint(vec.SFVec3f{X: 1, Y: 0, Z: 0})
+	// Row-vector: p * T * S → (1,0,0) * T(10) = (11,0,0) * S(2) = (22,0,0)
+	if !approx(p.X, 22) || !approx(p.Y, 0) || !approx(p.Z, 0) {
+		t.Fatalf("translate+scale: got %v, want (22,0,0)", p)
+	}
+}
+
+func TestTransform_GetLocalMatrix_TranslateRotateScale(t *testing.T) {
+	tr := NewTransform()
+	tr.Translation = vec.SFVec3f{X: 5, Y: 0, Z: 0}
+	tr.Rotation = vec.NewRotation(0, 0, 1, math.Pi/2) // 90° around Z
+	tr.Scale = vec.SFVec3f{X: 2, Y: 2, Z: 2}
+	m := tr.GetLocalMatrix()
+	// Row-vector: p * T * R * S
+	// (1,0,0) * T(5) = (6,0,0) * R(90° Z) = (0,6,0) * S(2) = (0,12,0)
+	p := m.TransformPoint(vec.SFVec3f{X: 1, Y: 0, Z: 0})
+	if !approx(p.X, 0) || !approx(p.Y, 12) || !approx(p.Z, 0) {
+		t.Fatalf("T+R+S: got %v, want (0,12,0)", p)
+	}
+}
+
+func TestTransform_GetLocalMatrix_WithCenter(t *testing.T) {
+	tr := NewTransform()
+	tr.Center = vec.SFVec3f{X: 1, Y: 0, Z: 0}
+	tr.Rotation = vec.NewRotation(0, 0, 1, math.Pi/2) // 90° around Z
+	m := tr.GetLocalMatrix()
+	// Row-vector: p * C * R * C^-1
+	// (0,0,0) * C(1,0,0) = (1,0,0) * R(90° Z) = (0,1,0) * C^-1(-1,0,0) = (-1,1,0)
+	p := m.TransformPoint(vec.Vec3fZero)
+	if !approx(p.X, -1) || !approx(p.Y, 1) || !approx(p.Z, 0) {
+		t.Fatalf("center rotation: got %v, want (-1,1,0)", p)
+	}
+}
+
+func TestTransform_GetLocalMatrix_IdentityTransform(t *testing.T) {
+	tr := NewTransform()
+	m := tr.GetLocalMatrix()
+	id := vec.Identity()
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			if !approx(m[i][j], id[i][j]) {
+				t.Fatalf("default transform not identity at [%d][%d]: %g", i, j, m[i][j])
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BaseGeometry.GetSolid
+// ---------------------------------------------------------------------------
+
+func TestBaseGeometry_GetSolid_Nil(t *testing.T) {
+	b := &BaseGeometry{}
+	if b.GetSolid() != nil {
+		t.Fatal("GetSolid should return nil by default")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Untested constructors — Extrusion
+// ---------------------------------------------------------------------------
+
+func TestNewExtrusion_Defaults(t *testing.T) {
+	e := NewExtrusion()
+	if !e.BeginCap || !e.EndCap {
+		t.Fatalf("caps: begin=%v end=%v", e.BeginCap, e.EndCap)
+	}
+	if len(e.CrossSection) != 1 {
+		t.Fatalf("CrossSection len=%d, want 1", len(e.CrossSection))
+	}
+	if len(e.Spine) != 1 {
+		t.Fatalf("Spine len=%d, want 1", len(e.Spine))
+	}
+	if !e.Ccw || !e.Convex || !e.IsSolid {
+		t.Fatalf("BaseGeometry defaults wrong: ccw=%v convex=%v solid=%v", e.Ccw, e.Convex, e.IsSolid)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Untested constructors — Sound / AudioClip
+// ---------------------------------------------------------------------------
+
+func TestNewSound_Defaults(t *testing.T) {
+	s := NewSound()
+	if !s.Spatialize {
+		t.Fatal("Spatialize should be true")
+	}
+	if !approx(s.Intensity, 1.0) {
+		t.Fatalf("Intensity=%g, want 1", s.Intensity)
+	}
+	if !approx(s.MaxBack, 10.0) || !approx(s.MaxFront, 10.0) {
+		t.Fatalf("MaxBack=%g MaxFront=%g", s.MaxBack, s.MaxFront)
+	}
+	if !approx(s.MinBack, 1.0) || !approx(s.MinFront, 1.0) {
+		t.Fatalf("MinBack=%g MinFront=%g", s.MinBack, s.MinFront)
+	}
+}
+
+func TestNewAudioClip_Defaults(t *testing.T) {
+	a := NewAudioClip()
+	if !approx(a.Pitch, 1.0) {
+		t.Fatalf("Pitch=%g, want 1", a.Pitch)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Untested constructors — MovieTexture
+// ---------------------------------------------------------------------------
+
+func TestNewMovieTexture_Defaults(t *testing.T) {
+	m := NewMovieTexture()
+	if !approx(m.Speed, 1.0) {
+		t.Fatalf("Speed=%g, want 1", m.Speed)
+	}
+	if !m.RepeatS || !m.RepeatT {
+		t.Fatalf("RepeatS=%v RepeatT=%v", m.RepeatS, m.RepeatT)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Untested constructors — DataSet-based geometry
+// ---------------------------------------------------------------------------
+
+func TestNewIndexedFaceSet_Defaults(t *testing.T) {
+	ifs := NewIndexedFaceSet()
+	if !ifs.ColorPerVertex {
+		t.Fatal("ColorPerVertex should be true")
+	}
+	if !ifs.NormalPerVertex {
+		t.Fatal("NormalPerVertex should be true")
+	}
+	if !ifs.Ccw || !ifs.Convex || !ifs.IsSolid {
+		t.Fatalf("geometry defaults: ccw=%v convex=%v solid=%v", ifs.Ccw, ifs.Convex, ifs.IsSolid)
+	}
+}
+
+func TestNewIndexedLineSet_Defaults(t *testing.T) {
+	ils := NewIndexedLineSet()
+	if !ils.ColorPerVertex || !ils.NormalPerVertex {
+		t.Fatalf("ColorPerVertex=%v NormalPerVertex=%v", ils.ColorPerVertex, ils.NormalPerVertex)
+	}
+}
+
+func TestNewPointSet_Defaults(t *testing.T) {
+	ps := NewPointSet()
+	if !ps.ColorPerVertex || !ps.NormalPerVertex {
+		t.Fatalf("ColorPerVertex=%v NormalPerVertex=%v", ps.ColorPerVertex, ps.NormalPerVertex)
+	}
+}
+
+func TestNewElevationGrid_Defaults(t *testing.T) {
+	eg := NewElevationGrid()
+	if !eg.ColorPerVertex || !eg.NormalPerVertex {
+		t.Fatalf("ColorPerVertex=%v NormalPerVertex=%v", eg.ColorPerVertex, eg.NormalPerVertex)
+	}
+	if eg.XDimension != 0 || eg.ZDimension != 0 {
+		t.Fatalf("dimensions: x=%d z=%d", eg.XDimension, eg.ZDimension)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Untested constructors — Sensors
+// ---------------------------------------------------------------------------
+
+func TestNewCylinderSensor_Defaults(t *testing.T) {
+	cs := NewCylinderSensor()
+	if !cs.Enabled {
+		t.Fatal("Enabled should be true")
+	}
+	if !cs.AutoOffset {
+		t.Fatal("AutoOffset should be true")
+	}
+	if !approx(cs.DiskAngle, 0.262) {
+		t.Fatalf("DiskAngle=%g, want 0.262", cs.DiskAngle)
+	}
+	if !approx(cs.MaxAngle, -1.0) {
+		t.Fatalf("MaxAngle=%g, want -1", cs.MaxAngle)
+	}
+}
+
+func TestNewPlaneSensor_Defaults(t *testing.T) {
+	ps := NewPlaneSensor()
+	if !ps.Enabled {
+		t.Fatal("Enabled should be true")
+	}
+	if !ps.AutoOffset {
+		t.Fatal("AutoOffset should be true")
+	}
+	if !approx(ps.MaxPosition.X, -1) || !approx(ps.MaxPosition.Y, -1) {
+		t.Fatalf("MaxPosition=%v, want (-1,-1)", ps.MaxPosition)
+	}
+}
+
+func TestNewSphereSensor_Defaults(t *testing.T) {
+	ss := NewSphereSensor()
+	if !ss.Enabled {
+		t.Fatal("Enabled should be true")
+	}
+	if !ss.AutoOffset {
+		t.Fatal("AutoOffset should be true")
+	}
+	if !approx(ss.Offset.Y, 1) || !approx(ss.Offset.W, 0) {
+		t.Fatalf("Offset=%v", ss.Offset)
+	}
+}
+
+func TestNewVisibilitySensor_Defaults(t *testing.T) {
+	vs := NewVisibilitySensor()
+	if !vs.Enabled {
+		t.Fatal("Enabled should be true")
 	}
 }

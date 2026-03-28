@@ -6,12 +6,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/g3n/engine/app"
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/gui"
 	"github.com/g3n/engine/light"
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/renderer"
@@ -27,13 +29,19 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <file.wrl>\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\nVRML97 3D Viewer - loads and renders .wrl files\n")
-		os.Exit(1)
+	var wrlPath string
+	if len(os.Args) >= 2 {
+		wrlPath = os.Args[1]
+	} else {
+		// No file specified — find the most recently modified .wrl in examples/bool_demos/
+		wrlPath = findMostRecentBoolDemo()
+		if wrlPath == "" {
+			fmt.Fprintf(os.Stderr, "Usage: %s [file.wrl]\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "\nNo file specified and no bool demo files found in examples/bool_demos/\n")
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "No file specified — loading most recent: %s\n", wrlPath)
 	}
-
-	wrlPath := os.Args[1]
 	baseDir := filepath.Dir(wrlPath)
 
 	// Parse the VRML file
@@ -61,6 +69,9 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stderr, "Parsed %d top-level nodes from %s\n", len(vrmlNodes), wrlPath)
+
+	// Drop pre-computed result transforms from bool_demo files (keep only A and B)
+	vrmlNodes = dropResultTransforms(vrmlNodes)
 
 	// Create g3n application
 	a := app.App()
@@ -198,6 +209,26 @@ func main() {
 	axes := helper.NewAxes(1.0)
 	scene.Add(axes)
 
+	// Set up GUI manager and menu bar
+	gui.Manager().Set(scene)
+
+	vs := &viewerState{
+		wireframe:   false,
+		axesVisible: true,
+		axes:        axes,
+		scene:       scene,
+		cam:         cam,
+		oc:          oc,
+		vrmlNodes:   vrmlNodes,
+		wrlPath:     wrlPath,
+		baseDir:     baseDir,
+		pendingLoad: make(chan string, 1),
+	}
+	vs.reloadFn = func(path string) { loadScene(vs, path) }
+
+	mb := setupMenuBar(vs)
+	scene.Add(mb)
+
 	// Background color
 	bg := converter.GetBackground(vrmlNodes)
 	if bg != nil && len(bg.SkyColor) > 0 {
@@ -219,10 +250,25 @@ func main() {
 	a.Subscribe(window.OnWindowSize, onResize)
 	onResize("", nil)
 
+	// Delete key clears all geometry from the scene
+	a.Subscribe(window.OnKeyDown, func(evname string, ev interface{}) {
+		kev := ev.(*window.KeyEvent)
+		if kev.Key == window.KeyDelete || kev.Key == window.KeyBackspace {
+			clearGeometry(vs)
+		}
+	})
+
 	fmt.Fprintf(os.Stderr, "Viewer ready. Drag to rotate, scroll to zoom.\n")
 
 	// Render loop
 	a.Run(func(rend *renderer.Renderer, deltaTime time.Duration) {
+		// Check for pending file load (from goroutine — must run on main thread)
+		select {
+		case path := <-vs.pendingLoad:
+			loadScene(vs, path)
+		default:
+		}
+
 		// Get camera position for action traverser
 		camPos := cam.Position()
 		viewerPos := vec.SFVec3f{X: float64(camPos.X), Y: float64(camPos.Y), Z: float64(camPos.Z)}
@@ -256,4 +302,43 @@ func hasLights(nodes []node.Node) bool {
 		}
 	}
 	return false
+}
+
+// findMostRecentBoolDemo returns the path to the most recently modified .wrl
+// file in examples/bool_demos/, or "" if none found.
+func findMostRecentBoolDemo() string {
+	candidates := []string{
+		"examples/bool_demos",
+		"trueblocks-vranimal/examples/bool_demos",
+	}
+	var dir string
+	for _, c := range candidates {
+		if info, err := os.Stat(c); err == nil && info.IsDir() {
+			dir = c
+			break
+		}
+	}
+	if dir == "" {
+		return ""
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var bestPath string
+	var bestTime time.Time
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".wrl") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(bestTime) {
+			bestTime = info.ModTime()
+			bestPath = filepath.Join(dir, e.Name())
+		}
+	}
+	return bestPath
 }

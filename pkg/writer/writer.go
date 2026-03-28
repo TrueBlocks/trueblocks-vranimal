@@ -484,6 +484,28 @@ func (wr *Writer) writePixelTexture(n *node.PixelTexture) {
 	def := node.NewPixelTexture()
 	wr.printf("PixelTexture {\n")
 	wr.indent++
+	img := n.Image
+	if img.Width > 0 || img.Height > 0 || len(img.Pixels) > 0 {
+		wr.printf("%simage %d %d %d", wr.indentStr(), img.Width, img.Height, img.NumComponents)
+		nPixels := int(img.Width) * int(img.Height)
+		nc := int(img.NumComponents)
+		for i := 0; i < nPixels; i++ {
+			off := i * nc
+			var pixel uint32
+			switch nc {
+			case 1:
+				pixel = uint32(img.Pixels[off])
+			case 2:
+				pixel = uint32(img.Pixels[off])<<8 | uint32(img.Pixels[off+1])
+			case 3:
+				pixel = uint32(img.Pixels[off])<<16 | uint32(img.Pixels[off+1])<<8 | uint32(img.Pixels[off+2])
+			case 4:
+				pixel = uint32(img.Pixels[off])<<24 | uint32(img.Pixels[off+1])<<16 | uint32(img.Pixels[off+2])<<8 | uint32(img.Pixels[off+3])
+			}
+			wr.printf(" %d", pixel)
+		}
+		wr.printf("\n")
+	}
 	if n.RepeatS != def.RepeatS {
 		wr.line("repeatS %s", fmtBool(n.RepeatS))
 	}

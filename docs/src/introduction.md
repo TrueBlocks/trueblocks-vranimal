@@ -6,7 +6,7 @@ The library is organized into three layers that can be used independently or tog
 
 | Layer | Packages | Description |
 |-------|----------|-------------|
-| **Utility** | `pkg/vec`, `pkg/base`, `pkg/types`, `pkg/geo` | Vector math, bounding boxes, base types |
+| **Utility** | `pkg/vec`, `pkg/types`, `pkg/geo` | Vector math, bounding boxes, base types |
 | **Solid Modeling** | `pkg/solid` | Half-edge B-rep data structures, Euler operators |
 | **VRML97** | `pkg/node`, `pkg/parser`, `pkg/browser`, `pkg/converter`, `pkg/traverser` | Full VRML97 node types, parser, scene graph conversion, rendering |
 
@@ -52,8 +52,8 @@ VRML97 (Virtual Reality Modeling Language, ISO/IEC 14772-1:1997) is a standard f
 │                    pkg/solid                          │
 │          (half-edge B-rep, Euler ops)                 │
 ├─────────────────────────────────────────────────────┤
-│           pkg/vec  ·  pkg/geo  ·  pkg/base           │
-│        (math types · bounding box · base node)       │
+│              pkg/vec  ·  pkg/geo                     │
+│           (math types · bounding box)                │
 └─────────────────────────────────────────────────────┘
 ```
 

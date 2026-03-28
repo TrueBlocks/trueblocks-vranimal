@@ -562,3 +562,280 @@ func TestMatrix_Determinant_Scale(t *testing.T) {
 		t.Fatalf("expected 24, got %g", d)
 	}
 }
+
+// ===========================================================================
+// Gap-filling tests (issue #50)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// SlerpRotation — edge cases
+// ---------------------------------------------------------------------------
+
+func TestSlerpRotation_NearlyIdentical(t *testing.T) {
+	// Tests the linear fallback path (dot > 0.9995)
+	a := NewRotation(0, 1, 0, 0.001)
+	b := NewRotation(0, 1, 0, 0.002)
+	mid := SlerpRotation(a, b, 0.5)
+	if !approx(mid.W, 0.0015) {
+		t.Fatalf("expected ~0.0015, got %g", mid.W)
+	}
+}
+
+func TestSlerpRotation_180Degrees(t *testing.T) {
+	// Slerp through a half-turn
+	a := NewRotation(0, 1, 0, 0)
+	b := NewRotation(0, 1, 0, math.Pi)
+	q := SlerpRotation(a, b, 0.25)
+	if !approx(q.W, math.Pi/4) {
+		t.Fatalf("expected Pi/4 (%g), got %g", math.Pi/4, q.W)
+	}
+}
+
+func TestSlerpRotation_DifferentAxes(t *testing.T) {
+	// Slerp between Y-axis and Z-axis rotations
+	a := NewRotation(0, 1, 0, math.Pi/2)
+	b := NewRotation(0, 0, 1, math.Pi/2)
+	mid := SlerpRotation(a, b, 0.5)
+	// Result should be a valid rotation (axis has unit length, angle > 0)
+	axis := SFVec3f{mid.X, mid.Y, mid.Z}
+	axLen := axis.Length()
+	if !approx(axLen, 1.0) {
+		t.Fatalf("slerp axis not unit length: %g", axLen)
+	}
+	if mid.W < 0 || mid.W > math.Pi {
+		t.Fatalf("slerp angle out of range: %g", mid.W)
+	}
+}
+
+func TestSlerpRotation_NegativeDot(t *testing.T) {
+	// Forces the quaternion flip path (dot < 0)
+	a := NewRotation(0, 1, 0, 0.1)
+	b := NewRotation(0, -1, 0, 0.1)
+	// These represent nearly the same rotation, just opposite quaternion hemisphere
+	r := SlerpRotation(a, b, 0.5)
+	// Should produce a valid result without NaN
+	if math.IsNaN(r.W) || math.IsNaN(r.X) {
+		t.Fatal("slerp produced NaN with negative dot")
+	}
+}
+
+func TestSlerpRotation_ZeroAngle(t *testing.T) {
+	a := NewRotation(0, 1, 0, 0)
+	b := NewRotation(0, 1, 0, 0)
+	r := SlerpRotation(a, b, 0.5)
+	if !approx(r.W, 0) {
+		t.Fatalf("slerp of two zero rotations should be zero, got %g", r.W)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Normalize — edge cases
+// ---------------------------------------------------------------------------
+
+func TestVec3f_Normalize_TinyVector(t *testing.T) {
+	v := SFVec3f{1e-15, 0, 0}
+	n := v.Normalize()
+	if !approx(n.Length(), 1.0) {
+		t.Fatalf("normalize of tiny vector: length = %g, want 1", n.Length())
+	}
+}
+
+func TestVec3f_Normalize_LargeVector(t *testing.T) {
+	v := SFVec3f{1e15, 1e15, 1e15}
+	n := v.Normalize()
+	if !approx(n.Length(), 1.0) {
+		t.Fatalf("normalize of large vector: length = %g, want 1", n.Length())
+	}
+}
+
+func TestVec2f_Normalize_TinyVector(t *testing.T) {
+	v := SFVec2f{0, 1e-15}
+	n := v.Normalize()
+	if !approx(n.Length(), 1.0) {
+		t.Fatalf("normalize of tiny vec2: length = %g, want 1", n.Length())
+	}
+}
+
+func TestVec3f_Normalize_PreservesDirection(t *testing.T) {
+	v := SFVec3f{3, 4, 0}
+	n := v.Normalize()
+	if !approx(n.X, 0.6) || !approx(n.Y, 0.8) || !approx(n.Z, 0.0) {
+		t.Fatalf("normalize direction wrong: %v", n)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Lerp — edge cases
+// ---------------------------------------------------------------------------
+
+func TestVec3f_Lerp_Extrapolation(t *testing.T) {
+	a := SFVec3f{0, 0, 0}
+	b := SFVec3f{10, 0, 0}
+	r := a.Lerp(b, 2.0)
+	if !approx(r.X, 20) {
+		t.Fatalf("lerp extrapolation: got %g, want 20", r.X)
+	}
+}
+
+func TestVec3f_Lerp_SameVector(t *testing.T) {
+	v := SFVec3f{5, 5, 5}
+	r := v.Lerp(v, 0.5)
+	if !r.Eq(v) {
+		t.Fatalf("lerp same vector: got %v, want %v", r, v)
+	}
+}
+
+func TestVec3f_Lerp_NegativeT(t *testing.T) {
+	a := SFVec3f{10, 0, 0}
+	b := SFVec3f{20, 0, 0}
+	r := a.Lerp(b, -1.0)
+	if !approx(r.X, 0) {
+		t.Fatalf("lerp negative t: got %g, want 0", r.X)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Cross product — properties
+// ---------------------------------------------------------------------------
+
+func TestVec3f_Cross_AntiCommutative(t *testing.T) {
+	a := SFVec3f{1, 2, 3}
+	b := SFVec3f{4, 5, 6}
+	ab := a.Cross(b)
+	ba := b.Cross(a)
+	if !approx(ab.X, -ba.X) || !approx(ab.Y, -ba.Y) || !approx(ab.Z, -ba.Z) {
+		t.Fatalf("cross not anti-commutative: a×b=%v, b×a=%v", ab, ba)
+	}
+}
+
+func TestVec3f_Cross_Perpendicular(t *testing.T) {
+	a := SFVec3f{1, 0, 0}
+	b := SFVec3f{0, 1, 0}
+	c := a.Cross(b)
+	if !approx(a.Dot(c), 0) || !approx(b.Dot(c), 0) {
+		t.Fatalf("cross not perpendicular: a·c=%g, b·c=%g", a.Dot(c), b.Dot(c))
+	}
+}
+
+func TestVec3f_Cross_ParallelIsZero(t *testing.T) {
+	a := SFVec3f{1, 2, 3}
+	b := a.Scale(5)
+	c := a.Cross(b)
+	if !approx(c.Length(), 0) {
+		t.Fatalf("cross of parallel vectors should be zero, got %v", c)
+	}
+}
+
+func TestVec3f_Cross_BasisVectors(t *testing.T) {
+	// x × y = z, y × z = x, z × x = y
+	if !XAxis.Cross(YAxis).Eq(ZAxis) {
+		t.Fatal("X×Y != Z")
+	}
+	if !YAxis.Cross(ZAxis).Eq(XAxis) {
+		t.Fatal("Y×Z != X")
+	}
+	if !ZAxis.Cross(XAxis).Eq(YAxis) {
+		t.Fatal("Z×X != Y")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Color — edge cases
+// ---------------------------------------------------------------------------
+
+func TestColor_NormalizeColor_AlreadyNormalized(t *testing.T) {
+	c := NewColor(0.5, 0.5, 0.5)
+	n := c.NormalizeColor()
+	if !approx(n.R, 0.5) || !approx(n.G, 0.5) || !approx(n.B, 0.5) {
+		t.Fatalf("normalizing already-normal color changed it: %v", n)
+	}
+}
+
+func TestColor_NormalizeColor_OutOfRange(t *testing.T) {
+	c := SFColor{R: -0.5, G: 1.5, B: 0.5, A: 1}
+	n := c.NormalizeColor()
+	if n.R < 0 || n.R > 1 || n.G < 0 || n.G > 1 {
+		t.Fatalf("normalize didn't clamp: %v", n)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Matrix — additional coverage
+// ---------------------------------------------------------------------------
+
+func TestMatrix_RotationX_90(t *testing.T) {
+	// Rotate Y-axis 90° around X → should become Z-axis
+	m := RotationMatrix(NewRotation(1, 0, 0, math.Pi/2))
+	r := m.TransformPoint(YAxis)
+	if !approx(r.X, 0) || !approx(r.Y, 0) || !approx(r.Z, 1) {
+		t.Fatalf("90° X rotation of Y: got %v, want (0,0,1)", r)
+	}
+}
+
+func TestMatrix_RotationY_90(t *testing.T) {
+	// Rotate X-axis 90° around Y → should become -Z-axis
+	m := RotationMatrix(NewRotation(0, 1, 0, math.Pi/2))
+	r := m.TransformPoint(XAxis)
+	if !approx(r.X, 0) || !approx(r.Y, 0) || !approx(r.Z, -1) {
+		t.Fatalf("90° Y rotation of X: got %v, want (0,0,-1)", r)
+	}
+}
+
+func TestMatrix_CombinedTransform(t *testing.T) {
+	// tr.Mul(s) on (1,0,0): translate first → (2,0,0), then scale → (4,0,0)
+	tr := TranslationMatrix(1, 0, 0)
+	s := ScaleMatrix(2, 2, 2)
+	m := tr.Mul(s)
+	p := m.TransformPoint(SFVec3f{1, 0, 0})
+	if !approx(p.X, 4) || !approx(p.Y, 0) || !approx(p.Z, 0) {
+		t.Fatalf("translate*scale of (1,0,0): got %v, want (4,0,0)", p)
+	}
+}
+
+func TestMatrix_TransformDirection_IgnoresTranslation(t *testing.T) {
+	m := TranslationMatrix(10, 20, 30)
+	d := m.TransformDirection(XAxis)
+	if !d.Eq(XAxis) {
+		t.Fatalf("TransformDirection should ignore translation: got %v", d)
+	}
+}
+
+func TestMatrix_Determinant_Rotation(t *testing.T) {
+	// Rotation matrices have determinant 1
+	m := RotationMatrix(NewRotation(1, 1, 1, 0.7))
+	d := m.Determinant()
+	if !approx(d, 1.0) {
+		t.Fatalf("rotation determinant should be 1, got %g", d)
+	}
+}
+
+func TestMatrix_Invert_Scale(t *testing.T) {
+	m := ScaleMatrix(2, 3, 4)
+	inv := m.Invert()
+	p := inv.TransformPoint(SFVec3f{2, 3, 4})
+	if !approx(p.X, 1) || !approx(p.Y, 1) || !approx(p.Z, 1) {
+		t.Fatalf("invert scale: got %v, want (1,1,1)", p)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Image — edge cases
+// ---------------------------------------------------------------------------
+
+func TestImage_ZeroSize(t *testing.T) {
+	img := NewImage(0, 0, 3)
+	if img.Width != 0 || img.Height != 0 {
+		t.Fatalf("zero-size image: got %dx%d", img.Width, img.Height)
+	}
+	if len(img.Pixels) != 0 {
+		t.Fatalf("zero-size image should have 0 pixels, got %d", len(img.Pixels))
+	}
+}
+
+func TestImage_PixelBufferSize(t *testing.T) {
+	img := NewImage(8, 4, 3)
+	expected := 8 * 4 * 3
+	if len(img.Pixels) != expected {
+		t.Fatalf("pixel buffer size: got %d, want %d", len(img.Pixels), expected)
+	}
+}

@@ -404,3 +404,363 @@ func TestTruncatedInput(t *testing.T) {
 		t.Fatal("expected error for truncated magic")
 	}
 }
+
+// ===========================================================================
+// Gap-filling tests (issue #44)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// SFImage round-trip with actual pixel data
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_PixelTexture_WithImageData(t *testing.T) {
+	// Create a 2x2 RGB image with specific pixel values
+	img := vec.NewImage(2, 2, 3)
+	img.Pixels = []uint8{
+		255, 0, 0, // (0,0) red
+		0, 255, 0, // (1,0) green
+		0, 0, 255, // (0,1) blue
+		255, 255, 0, // (1,1) yellow
+	}
+	pt := &node.PixelTexture{
+		Image:   img,
+		RepeatS: true,
+		RepeatT: false,
+	}
+
+	scene := []node.Node{pt}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal("encode:", err)
+	}
+
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal("decode:", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+
+	got, ok := nodes[0].(*node.PixelTexture)
+	if !ok {
+		t.Fatal("expected *PixelTexture")
+	}
+	if got.Image.Width != 2 || got.Image.Height != 2 || got.Image.NumComponents != 3 {
+		t.Fatalf("image dims: %dx%dx%d", got.Image.Width, got.Image.Height, got.Image.NumComponents)
+	}
+	if len(got.Image.Pixels) != 12 {
+		t.Fatalf("pixel count: got %d, want 12", len(got.Image.Pixels))
+	}
+	// Verify actual pixel values survive round-trip
+	if got.Image.Pixels[0] != 255 || got.Image.Pixels[1] != 0 || got.Image.Pixels[2] != 0 {
+		t.Errorf("pixel (0,0): got %v, want [255 0 0]", got.Image.Pixels[0:3])
+	}
+	if got.Image.Pixels[9] != 255 || got.Image.Pixels[10] != 255 || got.Image.Pixels[11] != 0 {
+		t.Errorf("pixel (1,1): got %v, want [255 255 0]", got.Image.Pixels[9:12])
+	}
+	if got.RepeatS != true || got.RepeatT != false {
+		t.Errorf("RepeatS=%v RepeatT=%v", got.RepeatS, got.RepeatT)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SFImage standalone round-trip (bare image in a shape)
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_SFImage_LargePixelBuffer(t *testing.T) {
+	// 64x64 RGBA image — verifies large byte slice round-trip
+	img := vec.NewImage(64, 64, 4)
+	for i := range img.Pixels {
+		img.Pixels[i] = uint8(i % 256)
+	}
+	pt := &node.PixelTexture{Image: img, RepeatS: true, RepeatT: true}
+	scene := []node.Node{pt}
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal("encode:", err)
+	}
+
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal("decode:", err)
+	}
+	got := nodes[0].(*node.PixelTexture)
+	if int64(len(got.Image.Pixels)) != 64*64*4 {
+		t.Fatalf("pixel count: %d, want %d", len(got.Image.Pixels), 64*64*4)
+	}
+	// Spot-check some values
+	for _, idx := range []int{0, 100, 1000, 16383} {
+		if got.Image.Pixels[idx] != uint8(idx%256) {
+			t.Errorf("pixel[%d]: got %d, want %d", idx, got.Image.Pixels[idx], idx%256)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Geometry node value verification
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_Sphere_Values(t *testing.T) {
+	s := node.NewSphere()
+	s.Radius = 3.5
+	s.Slices = 32
+	s.Stacks = 24
+
+	scene := []node.Node{s}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.Sphere)
+	if got.Radius != 3.5 {
+		t.Errorf("Radius: got %g, want 3.5", got.Radius)
+	}
+	if got.Slices != 32 || got.Stacks != 24 {
+		t.Errorf("Slices=%d Stacks=%d", got.Slices, got.Stacks)
+	}
+}
+
+func TestRoundTrip_Cylinder_Values(t *testing.T) {
+	c := node.NewCylinder()
+	c.Radius = 0.5
+	c.Height = 10.0
+	c.Top = false
+
+	scene := []node.Node{c}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.Cylinder)
+	if got.Radius != 0.5 || got.Height != 10.0 {
+		t.Errorf("Radius=%g Height=%g", got.Radius, got.Height)
+	}
+	if got.Top != false {
+		t.Error("Top should be false")
+	}
+	if !got.Bottom || !got.Side {
+		t.Error("Bottom/Side should be true")
+	}
+}
+
+func TestRoundTrip_Cone_Values(t *testing.T) {
+	c := node.NewCone()
+	c.BottomRadius = 2.5
+	c.Height = 7.0
+	c.Bottom = false
+
+	scene := []node.Node{c}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.Cone)
+	if got.BottomRadius != 2.5 || got.Height != 7.0 {
+		t.Errorf("BottomRadius=%g Height=%g", got.BottomRadius, got.Height)
+	}
+	if got.Bottom != false || got.Side != true {
+		t.Errorf("Bottom=%v Side=%v", got.Bottom, got.Side)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Light node value verification
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_SpotLight_Values(t *testing.T) {
+	sl := node.NewSpotLight()
+	sl.CutOffAngle = 0.5
+	sl.BeamWidth = 0.3
+	sl.Direction = vec.SFVec3f{X: 0, Y: -1, Z: 0}
+	sl.Color = vec.SFColor{R: 1, G: 0.5, B: 0}
+
+	scene := []node.Node{sl}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.SpotLight)
+	if got.CutOffAngle != 0.5 || got.BeamWidth != 0.3 {
+		t.Errorf("CutOff=%g Beam=%g", got.CutOffAngle, got.BeamWidth)
+	}
+	if got.Direction.Y != -1 {
+		t.Errorf("Direction: %v", got.Direction)
+	}
+	if got.Color.R != 1 || got.Color.G != 0.5 {
+		t.Errorf("Color: %v", got.Color)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Sensor value verification
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_TimeSensor_Values(t *testing.T) {
+	ts := node.NewTimeSensor()
+	ts.CycleInterval = 5.0
+	ts.Loop = true
+	ts.StartTime = 1.0
+
+	scene := []node.Node{ts}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.TimeSensor)
+	if got.CycleInterval != 5.0 {
+		t.Errorf("CycleInterval=%g", got.CycleInterval)
+	}
+	if !got.Loop {
+		t.Error("Loop should be true")
+	}
+	if got.StartTime != 1.0 {
+		t.Errorf("StartTime=%g", got.StartTime)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Rotation/orientation round-trip with specific values
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_OrientationInterpolator_Values(t *testing.T) {
+	oi := &node.OrientationInterpolator{
+		Interpolator: node.Interpolator{Key: []float64{0, 0.5, 1.0}},
+		KeyValue: []vec.SFRotation{
+			{X: 1, Y: 0, Z: 0, W: 0},
+			{X: 0, Y: 1, Z: 0, W: float64(math.Pi / 2)},
+			{X: 0, Y: 0, Z: 1, W: float64(math.Pi)},
+		},
+	}
+
+	scene := []node.Node{oi}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.OrientationInterpolator)
+	if len(got.Key) != 3 || len(got.KeyValue) != 3 {
+		t.Fatalf("Key=%d KeyValue=%d", len(got.Key), len(got.KeyValue))
+	}
+	if got.KeyValue[1].Y != 1 {
+		t.Errorf("KeyValue[1].Y=%g, want 1", got.KeyValue[1].Y)
+	}
+	if got.KeyValue[2].W != float64(math.Pi) {
+		t.Errorf("KeyValue[2].W=%g, want Pi", got.KeyValue[2].W)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ElevationGrid with actual height data
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_ElevationGrid_Values(t *testing.T) {
+	eg := node.NewElevationGrid()
+	eg.XDimension = 3
+	eg.ZDimension = 3
+	eg.XSpacing = 1.0
+	eg.ZSpacing = 1.0
+	eg.Heights = []float64{0, 1, 0, 1, 2, 1, 0, 1, 0}
+
+	scene := []node.Node{eg}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.ElevationGrid)
+	if got.XDimension != 3 || got.ZDimension != 3 {
+		t.Errorf("dims: %dx%d", got.XDimension, got.ZDimension)
+	}
+	if len(got.Heights) != 9 {
+		t.Fatalf("heights: %d, want 9", len(got.Heights))
+	}
+	if got.Heights[4] != 2 {
+		t.Errorf("center height: %g, want 2", got.Heights[4])
+	}
+	if !got.ColorPerVertex || !got.NormalPerVertex {
+		t.Error("DataSet defaults not preserved")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Extrusion with array fields
+// ---------------------------------------------------------------------------
+
+func TestRoundTrip_Extrusion_Values(t *testing.T) {
+	e := node.NewExtrusion()
+	e.CrossSection = []vec.SFVec2f{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
+	e.Spine = []vec.SFVec3f{{X: 0, Y: 0, Z: 0}, {X: 0, Y: 5, Z: 0}}
+	e.BeginCap = false
+
+	scene := []node.Node{e}
+	var buf bytes.Buffer
+	if err := Encode(&buf, scene); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := nodes[0].(*node.Extrusion)
+	if len(got.CrossSection) != 4 {
+		t.Fatalf("CrossSection: %d, want 4", len(got.CrossSection))
+	}
+	if len(got.Spine) != 2 {
+		t.Fatalf("Spine: %d, want 2", len(got.Spine))
+	}
+	if got.Spine[1].Y != 5 {
+		t.Errorf("Spine[1].Y=%g, want 5", got.Spine[1].Y)
+	}
+	if got.BeginCap != false || got.EndCap != true {
+		t.Errorf("BeginCap=%v EndCap=%v", got.BeginCap, got.EndCap)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Error handling — corrupted gob data
+// ---------------------------------------------------------------------------
+
+func TestCorruptedGobData(t *testing.T) {
+	// Valid magic followed by garbage
+	data := append([]byte("VRA1"), []byte("this is not valid gob data!!!")...)
+	_, err := Decode(bytes.NewReader(data))
+	if err == nil {
+		t.Fatal("expected error for corrupted gob data")
+	}
+}
+
+func TestEmptyAfterMagic(t *testing.T) {
+	_, err := Decode(bytes.NewReader([]byte("VRA1")))
+	if err == nil {
+		t.Fatal("expected error for empty data after magic")
+	}
+}

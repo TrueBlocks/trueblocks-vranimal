@@ -27,7 +27,7 @@ The VRaniML SDK is composed of five components. Each component is briefly descri
 
 A collection of supporting classes and routines: collection types (lists, arrays, stacks), geometry types (vec2, vec3, rotation, matrix), and utility support (timer, image loading, runtime typing).
 
-**Go packages**: `pkg/vec`, `pkg/base`, `pkg/types`, `pkg/geo`
+**Go packages**: `pkg/vec`, `pkg/types`, `pkg/geo`
 
 ### [Browser Related Classes (VEM)](./browser.md)
 

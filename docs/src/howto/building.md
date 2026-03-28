@@ -40,7 +40,7 @@ go build -o viewer ./cmd/viewer/
 
 ## Build Just the Libraries (no CGO)
 
-The core packages (`pkg/node`, `pkg/parser`, `pkg/vec`, `pkg/solid`, `pkg/base`, `pkg/types`, `pkg/geo`) are pure Go:
+The core packages (`pkg/node`, `pkg/parser`, `pkg/vec`, `pkg/solid`, `pkg/types`, `pkg/geo`) are pure Go:
 
 ```bash
 go build ./pkg/...

@@ -768,6 +768,30 @@ func (p *Parser) parseFieldValue(n node.Node, typeName, fieldName string) {
 		p.parseTouchSensorField(v, fieldName)
 	case *node.ProximitySensor:
 		p.parseProximitySensorField(v, fieldName)
+	case *node.Background:
+		p.parseBackgroundField(v, fieldName)
+	case *node.WorldInfo:
+		p.parseWorldInfoField(v, fieldName)
+	case *node.Script:
+		p.parseScriptField(v, fieldName)
+	case *node.Sound:
+		p.parseSoundField(v, fieldName)
+	case *node.AudioClip:
+		p.parseAudioClipField(v, fieldName)
+	case *node.Text:
+		p.parseTextField(v, fieldName)
+	case *node.FontStyle:
+		p.parseFontStyleField(v, fieldName)
+	case *node.Extrusion:
+		p.parseExtrusionField(v, fieldName)
+	case *node.CylinderSensor:
+		p.parseCylinderSensorField(v, fieldName)
+	case *node.PlaneSensor:
+		p.parsePlaneSensorField(v, fieldName)
+	case *node.SphereSensor:
+		p.parseSphereSensorField(v, fieldName)
+	case *node.VisibilitySensor:
+		p.parseVisibilitySensorField(v, fieldName)
 	default:
 		p.skipFieldValue()
 	}
@@ -1491,6 +1515,244 @@ func (p *Parser) parseProximitySensorField(ps *node.ProximitySensor, field strin
 }
 
 // ---------------------------------------------------------------------------
+// Gap-filling field parsers (issue #40)
+// ---------------------------------------------------------------------------
+
+func (p *Parser) parseBackgroundField(bg *node.Background, field string) {
+	switch field {
+	case "groundAngle":
+		bg.GroundAngle = p.parseMFFloat()
+	case "groundColor":
+		bg.GroundColor = p.parseMFColor()
+	case "skyAngle":
+		bg.SkyAngle = p.parseMFFloat()
+	case "skyColor":
+		bg.SkyColor = p.parseMFColor()
+	case "backUrl":
+		bg.BackURL = p.parseMFString()
+	case "bottomUrl":
+		bg.BottomURL = p.parseMFString()
+	case "frontUrl":
+		bg.FrontURL = p.parseMFString()
+	case "leftUrl":
+		bg.LeftURL = p.parseMFString()
+	case "rightUrl":
+		bg.RightURL = p.parseMFString()
+	case "topUrl":
+		bg.TopURL = p.parseMFString()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseWorldInfoField(wi *node.WorldInfo, field string) {
+	switch field {
+	case "title":
+		wi.Title = p.parseString()
+	case "info":
+		wi.Info = p.parseMFString()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseScriptField(s *node.Script, field string) {
+	switch field {
+	case "url":
+		s.URL = p.parseMFString()
+		s.OrigURL = append([]string(nil), s.URL...)
+	case "directOutput":
+		s.DirectOutput = p.parseBool()
+	case "mustEvaluate":
+		s.MustEvaluate = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseSoundField(snd *node.Sound, field string) {
+	switch field {
+	case "direction":
+		snd.Direction = p.parseVec3f()
+	case "intensity":
+		snd.Intensity = p.parseFloat()
+	case "location":
+		snd.Location = p.parseVec3f()
+	case "maxBack":
+		snd.MaxBack = p.parseFloat()
+	case "maxFront":
+		snd.MaxFront = p.parseFloat()
+	case "minBack":
+		snd.MinBack = p.parseFloat()
+	case "minFront":
+		snd.MinFront = p.parseFloat()
+	case "priority":
+		snd.Priority = p.parseFloat()
+	case "spatialize":
+		snd.Spatialize = p.parseBool()
+	case "source":
+		child := p.parseNode()
+		if ac, ok := child.(*node.AudioClip); ok {
+			snd.Source = ac
+		}
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseAudioClipField(ac *node.AudioClip, field string) {
+	switch field {
+	case "url":
+		ac.URL = p.parseMFString()
+		ac.OrigURL = append([]string(nil), ac.URL...)
+	case "description":
+		ac.Description = p.parseString()
+	case "loop":
+		ac.Loop = p.parseBool()
+	case "pitch":
+		ac.Pitch = p.parseFloat()
+	case "startTime":
+		ac.StartTime = p.parseFloat()
+	case "stopTime":
+		ac.StopTime = p.parseFloat()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseTextField(t *node.Text, field string) {
+	switch field {
+	case "string":
+		t.String = p.parseMFString()
+	case "fontStyle":
+		child := p.parseNode()
+		if fs, ok := child.(*node.FontStyle); ok {
+			t.FontStyle = fs
+		}
+	case "length":
+		t.Length = p.parseMFFloat()
+	case "maxExtent":
+		t.MaxExtent = p.parseFloat()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseFontStyleField(fs *node.FontStyle, field string) {
+	switch field {
+	case "family":
+		fs.Family = p.parseString()
+	case "horizontal":
+		fs.Horizontal = p.parseBool()
+	case "justify":
+		fs.Justify = p.parseMFString()
+	case "language":
+		fs.Language = p.parseString()
+	case "leftToRight":
+		fs.LeftToRight = p.parseBool()
+	case "size":
+		fs.Size = p.parseFloat()
+	case "spacing":
+		fs.Spacing = p.parseFloat()
+	case "style":
+		fs.Style = p.parseString()
+	case "topToBottom":
+		fs.TopToBottom = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseExtrusionField(e *node.Extrusion, field string) {
+	switch field {
+	case "beginCap":
+		e.BeginCap = p.parseBool()
+	case "endCap":
+		e.EndCap = p.parseBool()
+	case "crossSection":
+		e.CrossSection = p.parseMFVec2f()
+	case "orientation":
+		e.Orientation = p.parseMFRotation()
+	case "scale":
+		e.Scale = p.parseMFVec2f()
+	case "spine":
+		e.Spine = p.parseMFVec3f()
+	case "ccw":
+		e.Ccw = p.parseBool()
+	case "convex":
+		e.Convex = p.parseBool()
+	case "creaseAngle":
+		e.CreaseAngle = p.parseFloat()
+	case "solid":
+		e.IsSolid = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseCylinderSensorField(cs *node.CylinderSensor, field string) {
+	switch field {
+	case "autoOffset":
+		cs.AutoOffset = p.parseBool()
+	case "diskAngle":
+		cs.DiskAngle = p.parseFloat()
+	case "maxAngle":
+		cs.MaxAngle = p.parseFloat()
+	case "minAngle":
+		cs.MinAngle = p.parseFloat()
+	case "offset":
+		cs.Offset = p.parseFloat()
+	case "enabled":
+		cs.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parsePlaneSensorField(ps *node.PlaneSensor, field string) {
+	switch field {
+	case "autoOffset":
+		ps.AutoOffset = p.parseBool()
+	case "maxPosition":
+		ps.MaxPosition = p.parseVec2f()
+	case "minPosition":
+		ps.MinPosition = p.parseVec2f()
+	case "offset":
+		ps.Offset = p.parseVec3f()
+	case "enabled":
+		ps.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseSphereSensorField(ss *node.SphereSensor, field string) {
+	switch field {
+	case "autoOffset":
+		ss.AutoOffset = p.parseBool()
+	case "offset":
+		ss.Offset = p.parseRotation()
+	case "enabled":
+		ss.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+func (p *Parser) parseVisibilitySensorField(vs *node.VisibilitySensor, field string) {
+	switch field {
+	case "center":
+		vs.Center = p.parseVec3f()
+	case "size":
+		vs.Size = p.parseVec3f()
+	case "enabled":
+		vs.Enabled = p.parseBool()
+	default:
+		p.skipFieldValue()
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Primitive value parsers
 // ---------------------------------------------------------------------------
 
@@ -1660,6 +1922,24 @@ func (p *Parser) parseMFColor() []vec.SFColor {
 	} else {
 		v := p.parseVec3f()
 		vals = append(vals, vec.NewColor(v.X, v.Y, v.Z))
+	}
+	return vals
+}
+
+func (p *Parser) parseMFRotation() []vec.SFRotation {
+	var vals []vec.SFRotation
+	if p.lex.Peek() == TokOpenBracket {
+		p.lex.Next()
+		for p.lex.Peek() != TokCloseBracket && p.lex.Peek() != TokEOF {
+			if p.lex.Peek() == TokComma {
+				p.lex.Next()
+				continue
+			}
+			vals = append(vals, p.parseRotation())
+		}
+		p.lex.Next()
+	} else {
+		vals = append(vals, p.parseRotation())
 	}
 	return vals
 }
