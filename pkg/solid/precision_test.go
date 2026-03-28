@@ -69,7 +69,8 @@ func TestPrecision_LargeCoords(t *testing.T) {
 	}
 
 	// Volume = (2h)^3 = 1e12
-	expected := math.Pow(2*h, 3)
+	side := 2 * h
+	expected := side * side * side
 	vol := s.Volume()
 	if math.Abs(vol-expected)/expected > 1e-12 {
 		t.Errorf("volume = %.15g, want %.15g", vol, expected)
@@ -125,7 +126,8 @@ func TestPrecision_SmallCoords(t *testing.T) {
 	}
 
 	// Volume = (1e-4)^3 = 1e-12
-	expected := math.Pow(2*h, 3)
+	side2 := 2 * h
+	expected := side2 * side2 * side2
 	vol := s.Volume()
 	if math.Abs(vol-expected) > 1e-24 {
 		t.Errorf("volume = %.15g, want %.15g", vol, expected)

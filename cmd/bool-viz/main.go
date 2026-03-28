@@ -73,11 +73,14 @@ func makeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *s
 
 func main() {
 	outDir := filepath.Join("examples", "bool_demos")
-	os.MkdirAll(outDir, 0755)
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(1)
+	}
 
 	cases := []vizCase{
 		{
-			name: "partial_penetration",
+			name:  "partial_penetration",
 			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(0.5, lightBlue)
@@ -87,7 +90,7 @@ func main() {
 			},
 		},
 		{
-			name: "fully_contained",
+			name:  "fully_contained",
 			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(0.5, lightBlue)
@@ -96,7 +99,7 @@ func main() {
 			},
 		},
 		{
-			name: "through",
+			name:  "through",
 			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(0.5, lightBlue)
@@ -106,7 +109,7 @@ func main() {
 			},
 		},
 		{
-			name: "edge_on_edge",
+			name:  "edge_on_edge",
 			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(1.0, lightBlue)
@@ -115,7 +118,7 @@ func main() {
 			},
 		},
 		{
-			name: "rotated_elongated",
+			name:  "rotated_elongated",
 			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(0.5, lightBlue)
@@ -139,7 +142,7 @@ func main() {
 			},
 		},
 		{
-			name: "sphere_vs_cube",
+			name:  "sphere_vs_cube",
 			makeA: func() *solid.Solid { return solid.MakeSphere(1.0, 10, 10, yellow) },
 			makeB: func() *solid.Solid {
 				s := solid.MakeCube(1.0, lightBlue)
@@ -211,37 +214,48 @@ func main() {
 				continue
 			}
 
-			fmt.Fprintln(f, "#VRML V2.0 utf8")
-			fmt.Fprintf(f, "# Bool Visualization: %s %s\n", c.name, strings.ToUpper(op.name))
-			fmt.Fprintf(f, "# Status: %s\n", status)
-			fmt.Fprintln(f, "# Left (yellow): input solids A and B")
-			if ok && result != nil {
-				fmt.Fprintln(f, "# Right (green): boolean result")
-			} else {
-				fmt.Fprintln(f, "# Right: (no result - operation failed)")
+			w := func(format string, args ...any) {
+				if _, err := fmt.Fprintf(f, format, args...); err != nil {
+					fmt.Fprintf(os.Stderr, "write error: %v\n", err)
+				}
 			}
-			fmt.Fprintln(f, "")
-			fmt.Fprintln(f, "NavigationInfo { type \"EXAMINE\" }")
-			fmt.Fprintln(f, "Viewpoint { position 0 0 6 description \"Front\" }")
-			fmt.Fprintln(f, "")
+
+			w("#VRML V2.0 utf8\n")
+			w("# Bool Visualization: %s %s\n", c.name, strings.ToUpper(op.name))
+			w("# Status: %s\n", status)
+			w("# Left (yellow): input solids A and B\n")
+			if ok && result != nil {
+				w("# Right (green): boolean result\n")
+			} else {
+				w("# Right: (no result - operation failed)\n")
+			}
+			w("\n")
+			w("NavigationInfo { type \"EXAMINE\" }\n")
+			w("Viewpoint { position 0 0 6 description \"Front\" }\n")
+			w("\n")
 
 			labels := []string{"Input A", "Input B", "Result"}
 			wireColors := []vec.SFColor{yellow, lightBlue, vizGreen}
 			for i, s := range solids {
 				tx := translations[i]
-				fmt.Fprintf(f, "# %s\n", labels[i])
-				fmt.Fprintf(f, "Transform {\n  translation %g %g %g\n  children [\n", tx.X, tx.Y, tx.Z)
+				w("# %s\n", labels[i])
+				w("Transform {\n  translation %g %g %g\n  children [\n", tx.X, tx.Y, tx.Z)
 				if i == 0 {
-					// Input A: flat-shaded solid
-					s.ExportVRMLShape(f, "    ")
+					if err := s.ExportVRMLShape(f, "    "); err != nil {
+						fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+					}
 				} else {
-					s.ExportVRMLWireframe(f, "    ", wireColors[i])
+					if err := s.ExportVRMLWireframe(f, "    ", wireColors[i]); err != nil {
+						fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+					}
 				}
-				fmt.Fprintln(f, "  ]\n}")
-				fmt.Fprintln(f, "")
+				w("  ]\n}\n")
+				w("\n")
 			}
 
-			f.Close()
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+			}
 			fmt.Printf("  %-55s %s\n", fileName, status)
 		}
 	}

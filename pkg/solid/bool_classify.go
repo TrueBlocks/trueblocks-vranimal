@@ -371,7 +371,6 @@ const (
 // ---------------------------------------------------------------------------
 
 type vvClassifyRecord struct {
-	sp      Plane
 	v       *Vertex // from solid A
 	v2      *Vertex // from solid B
 	br      *BoolopRecord

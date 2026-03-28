@@ -57,7 +57,9 @@ func (p *Parser) resolveExternProto(def *ProtoDefinition) bool {
 		}
 
 		found := p.findProtoInReader(r, protoName)
-		r.Close()
+		if err := r.Close(); err != nil {
+			continue
+		}
 		if found != nil {
 			def.Body = found.Body
 			def.Fields = found.Fields
@@ -84,7 +86,7 @@ func defaultFetchURL(baseDir, rawURL string) (io.ReadCloser, error) {
 			return nil, err
 		}
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("HTTP %d for %s", resp.StatusCode, rawURL)
 		}
 		return resp.Body, nil

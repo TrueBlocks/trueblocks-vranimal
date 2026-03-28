@@ -150,6 +150,7 @@ func TestGetViewpoint(t *testing.T) {
 	vp := GetViewpoint(nodes)
 	if vp == nil {
 		t.Fatal("expected viewpoint")
+		return
 	}
 	if vp.Position.X != 1 || vp.Position.Y != 2 || vp.Position.Z != 3 {
 		t.Fatalf("wrong position: %v", vp.Position)
@@ -171,6 +172,7 @@ func TestGetNavigationInfo(t *testing.T) {
 	ni := GetNavigationInfo(nodes)
 	if ni == nil {
 		t.Fatal("expected navigation info")
+		return
 	}
 	if ni.Headlight {
 		t.Fatal("headlight should be false")
@@ -186,6 +188,7 @@ func TestGetFog(t *testing.T) {
 	fg := GetFog(nodes)
 	if fg == nil {
 		t.Fatal("expected fog")
+		return
 	}
 	if fg.FogType != "LINEAR" {
 		t.Fatalf("wrong fog type: %s", fg.FogType)
@@ -321,6 +324,7 @@ func TestGetNavigationInfo_Defaults(t *testing.T) {
 	ni := GetNavigationInfo(nodes)
 	if ni == nil {
 		t.Fatal("expected navigation info")
+		return
 	}
 	if !ni.Headlight {
 		t.Fatal("default headlight should be true")
@@ -339,6 +343,7 @@ func TestGetNavigationInfo_Custom(t *testing.T) {
 	ni := GetNavigationInfo(nodes)
 	if ni == nil {
 		t.Fatal("expected navigation info")
+		return
 	}
 	if ni.Headlight {
 		t.Fatal("headlight should be false")
@@ -510,6 +515,7 @@ Transform { children [
 	vp := GetViewpoint(nodes)
 	if vp == nil {
 		t.Fatal("should find Viewpoint nested in Transform>Group")
+		return
 	}
 	if vp.Position.X != 5 {
 		t.Fatalf("wrong position: %v", vp.Position)
@@ -523,6 +529,7 @@ Group { children [ Background { skyColor [0 0 1] } ] }`))
 	bg := GetBackground(nodes)
 	if bg == nil {
 		t.Fatal("should find Background nested in Group")
+		return
 	}
 	if len(bg.SkyColor) != 1 {
 		t.Fatalf("expected 1 skyColor, got %d", len(bg.SkyColor))
@@ -536,6 +543,7 @@ Transform { children [ Fog { visibilityRange 200 } ] }`))
 	fg := GetFog(nodes)
 	if fg == nil {
 		t.Fatal("should find Fog nested in Transform")
+		return
 	}
 	if fg.VisibilityRange != 200 {
 		t.Fatalf("wrong range: %g", fg.VisibilityRange)

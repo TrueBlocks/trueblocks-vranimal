@@ -174,6 +174,7 @@ Shape {
 	tt := s.Appearance.TextureTransform
 	if tt == nil {
 		t.Fatal("expected TextureTransform")
+		return
 	}
 	if tt.Center.X != 0.5 || tt.Center.Y != 0.5 {
 		t.Errorf("center: got %v, want {0.5, 0.5}", tt.Center)

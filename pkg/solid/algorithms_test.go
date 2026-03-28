@@ -279,6 +279,7 @@ func TestLoop_BoundaryContains_VertexHit(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	var l *Loop
@@ -312,6 +313,7 @@ func TestLoop_BoundaryContains_Miss(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	var l *Loop
@@ -346,6 +348,7 @@ func TestLoop_Contains(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	var l *Loop
@@ -380,6 +383,7 @@ func TestFace_FaceContains(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.CalcPlaneEquations()
 
@@ -414,6 +418,7 @@ func TestFace_FaceContains_Outside(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.CalcPlaneEquations()
 
@@ -451,6 +456,7 @@ func TestSolid_SolidContains(t *testing.T) {
 	outer := BuildFromIndexSet(positions, indices, vec.Red)
 	if outer == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	outer.CalcPlaneEquations()
 
@@ -516,6 +522,7 @@ func TestSolid_TranslationalSweep(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	initialVerts := s.NVerts()
@@ -568,6 +575,7 @@ func TestSolid_CollapseFace(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	// Just verify CollapseFace doesn't panic on valid face
 	_ = s
@@ -589,6 +597,7 @@ func TestFace_RemoveColinearVerts(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	for f := s.Faces; f != nil; f = f.Next {
@@ -612,6 +621,7 @@ func TestSolid_Triangulate(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil for quad")
+		return
 	}
 
 	s.Triangulate()
@@ -652,6 +662,7 @@ func TestSolid_Verify_Triangle(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	_ = s.Verify()
 }
@@ -671,6 +682,7 @@ func TestSolid_JoinCut(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	if s.NVerts() < 4 {
 		t.Fatalf("expected >=4 verts, got %d", s.NVerts())
@@ -692,6 +704,7 @@ func TestSolid_MoveFace(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	target := NewSolid()
@@ -742,6 +755,7 @@ func TestSolid_ArcSweep(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	var f *Face

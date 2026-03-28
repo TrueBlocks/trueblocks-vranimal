@@ -5,7 +5,7 @@ CGO_CFLAGS = -I/opt/homebrew/include
 CGO_LDFLAGS = -L/opt/homebrew/lib
 MSG ?= update
 
-.PHONY: build clean clobber test add commit push
+.PHONY: build clean clobber lint test add commit push
 
 build:
 	@for bin in $(BINARIES); do \
@@ -24,6 +24,10 @@ clean:
 	done
 
 clobber: clean
+
+lint:
+	go vet ./...
+	golangci-lint run ./...
 
 test:
 	go test ./...

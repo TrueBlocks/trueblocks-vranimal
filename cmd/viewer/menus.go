@@ -834,7 +834,9 @@ func loadScene(vs *viewerState, path string) {
 	p := parser.NewParser(f)
 	p.SetBaseDir(baseDir)
 	vrmlNodes := p.Parse()
-	f.Close()
+	if err := f.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+	}
 
 	if len(vrmlNodes) == 0 {
 		fmt.Fprintf(os.Stderr, "No nodes parsed from %s\n", path)

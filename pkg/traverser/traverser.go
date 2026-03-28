@@ -63,7 +63,7 @@ func NewWriteTraverser(w io.Writer) *WriteTraverser {
 
 // PreTraverse is called before traversal begins.
 func (wt *WriteTraverser) PreTraverse() {
-	fmt.Fprintln(wt.w, "#VRML V2.0 utf8")
+	_, _ = fmt.Fprintln(wt.w, "#VRML V2.0 utf8")
 }
 
 // PostTraverse is called after traversal ends.
@@ -131,189 +131,196 @@ func (wt *WriteTraverser) defPrefix(n node.Node) string {
 	return ""
 }
 
+func (wt *WriteTraverser) wprintf(format string, args ...any) {
+	_, _ = fmt.Fprintf(wt.w, format, args...)
+}
+
 func (wt *WriteTraverser) writeTransform(t *node.Transform) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%s%sTransform {\n", ind, wt.defPrefix(t))
+	wt.wprintf("%s%sTransform {\n", ind, wt.defPrefix(t))
 	wt.depth++
 	if t.Translation != (vec.SFVec3f{}) {
-		fmt.Fprintf(wt.w, "%stranslation %g %g %g\n", wt.indent(), t.Translation.X, t.Translation.Y, t.Translation.Z)
+		wt.wprintf("%stranslation %g %g %g\n", wt.indent(), t.Translation.X, t.Translation.Y, t.Translation.Z)
 	}
 	if t.Rotation != (vec.SFRotation{X: 0, Y: 1, Z: 0, W: 0}) {
-		fmt.Fprintf(wt.w, "%srotation %g %g %g %g\n", wt.indent(), t.Rotation.X, t.Rotation.Y, t.Rotation.Z, t.Rotation.W)
+		wt.wprintf("%srotation %g %g %g %g\n", wt.indent(), t.Rotation.X, t.Rotation.Y, t.Rotation.Z, t.Rotation.W)
 	}
 	if t.Scale != (vec.SFVec3f{X: 1, Y: 1, Z: 1}) {
-		fmt.Fprintf(wt.w, "%sscale %g %g %g\n", wt.indent(), t.Scale.X, t.Scale.Y, t.Scale.Z)
+		wt.wprintf("%sscale %g %g %g\n", wt.indent(), t.Scale.X, t.Scale.Y, t.Scale.Z)
 	}
 	if t.HasChildren() {
-		fmt.Fprintf(wt.w, "%schildren [\n", wt.indent())
+		wt.wprintf("%schildren [\n", wt.indent())
 		wt.depth++
 		wt.TraverseChildren(&t.GroupingNode)
 		wt.depth--
-		fmt.Fprintf(wt.w, "%s]\n", wt.indent())
+		wt.wprintf("%s]\n", wt.indent())
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeGroup(g *node.Group) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%s%sGroup {\n", ind, wt.defPrefix(g))
+	wt.wprintf("%s%sGroup {\n", ind, wt.defPrefix(g))
 	wt.depth++
 	if g.HasChildren() {
-		fmt.Fprintf(wt.w, "%schildren [\n", wt.indent())
+		wt.wprintf("%schildren [\n", wt.indent())
 		wt.depth++
 		wt.TraverseChildren(&g.GroupingNode)
 		wt.depth--
-		fmt.Fprintf(wt.w, "%s]\n", wt.indent())
+		wt.wprintf("%s]\n", wt.indent())
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeShape(s *node.Shape) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%s%sShape {\n", ind, wt.defPrefix(s))
+	wt.wprintf("%s%sShape {\n", ind, wt.defPrefix(s))
 	wt.depth++
 	if s.Appearance != nil {
 		wt.TraverseNode(s.Appearance)
 	}
 	if s.Geometry != nil {
-		fmt.Fprintf(wt.w, "%sgeometry ", wt.indent())
+		wt.wprintf("%sgeometry ", wt.indent())
 		wt.TraverseNode(s.Geometry)
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeAppearance(a *node.Appearance) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%sappearance Appearance {\n", ind)
+	wt.wprintf("%sappearance Appearance {\n", ind)
 	wt.depth++
 	if a.Material != nil {
 		wt.TraverseNode(a.Material)
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeMaterial(m *node.Material) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%smaterial Material {\n", ind)
+	wt.wprintf("%smaterial Material {\n", ind)
 	wt.depth++
-	fmt.Fprintf(wt.w, "%sdiffuseColor %g %g %g\n", wt.indent(), m.DiffuseColor.R, m.DiffuseColor.G, m.DiffuseColor.B)
+	wt.wprintf("%sdiffuseColor %g %g %g\n", wt.indent(), m.DiffuseColor.R, m.DiffuseColor.G, m.DiffuseColor.B)
 	if m.AmbientIntensity != 0.2 {
-		fmt.Fprintf(wt.w, "%sambientIntensity %g\n", wt.indent(), m.AmbientIntensity)
+		wt.wprintf("%sambientIntensity %g\n", wt.indent(), m.AmbientIntensity)
 	}
 	if m.Shininess != 0.2 {
-		fmt.Fprintf(wt.w, "%sshininess %g\n", wt.indent(), m.Shininess)
+		wt.wprintf("%sshininess %g\n", wt.indent(), m.Shininess)
 	}
 	if m.Transparency != 0 {
-		fmt.Fprintf(wt.w, "%stransparency %g\n", wt.indent(), m.Transparency)
+		wt.wprintf("%stransparency %g\n", wt.indent(), m.Transparency)
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeBox(b *node.Box) {
-	fmt.Fprintf(wt.w, "Box { size %g %g %g }\n", b.Size.X, b.Size.Y, b.Size.Z)
+	wt.wprintf("Box { size %g %g %g }\n", b.Size.X, b.Size.Y, b.Size.Z)
 }
 
 func (wt *WriteTraverser) writeSphere(s *node.Sphere) {
-	fmt.Fprintf(wt.w, "Sphere { radius %g }\n", s.Radius)
+	wt.wprintf("Sphere { radius %g }\n", s.Radius)
 }
 
 func (wt *WriteTraverser) writeCone(c *node.Cone) {
-	fmt.Fprintf(wt.w, "Cone { bottomRadius %g height %g }\n", c.BottomRadius, c.Height)
+	wt.wprintf("Cone { bottomRadius %g height %g }\n", c.BottomRadius, c.Height)
 }
 
 func (wt *WriteTraverser) writeCylinder(c *node.Cylinder) {
-	fmt.Fprintf(wt.w, "Cylinder { radius %g height %g }\n", c.Radius, c.Height)
+	wt.wprintf("Cylinder { radius %g height %g }\n", c.Radius, c.Height)
 }
 
 func (wt *WriteTraverser) writeIndexedFaceSet(ifs *node.IndexedFaceSet) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "IndexedFaceSet {\n")
+	wt.wprintf("IndexedFaceSet {\n")
 	wt.depth++
 	if ifs.Coord != nil {
-		fmt.Fprintf(wt.w, "%scoord ", wt.indent())
+		wt.wprintf("%scoord ", wt.indent())
 		wt.TraverseNode(ifs.Coord)
 	}
 	if len(ifs.CoordIndex) > 0 {
-		fmt.Fprintf(wt.w, "%scoordIndex [ ", wt.indent())
+		wt.wprintf("%scoordIndex [ ", wt.indent())
 		for _, idx := range ifs.CoordIndex {
-			fmt.Fprintf(wt.w, "%d, ", idx)
+			wt.wprintf("%d, ", idx)
 		}
-		fmt.Fprintln(wt.w, "]")
+		wt.wprintf("]\n")
 	}
 	if ifs.Normal != nil {
-		fmt.Fprintf(wt.w, "%snormal ", wt.indent())
+		wt.wprintf("%snormal ", wt.indent())
 		wt.TraverseNode(ifs.Normal)
 	}
 	if ifs.Color != nil {
-		fmt.Fprintf(wt.w, "%scolor ", wt.indent())
+		wt.wprintf("%scolor ", wt.indent())
 		wt.TraverseNode(ifs.Color)
 	}
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeCoordinate(c *node.Coordinate) {
-	fmt.Fprintf(wt.w, "Coordinate { point [ ")
+	wt.wprintf("Coordinate { point [ ")
 	for _, p := range c.Point {
-		fmt.Fprintf(wt.w, "%g %g %g, ", p.X, p.Y, p.Z)
+		wt.wprintf("%g %g %g, ", p.X, p.Y, p.Z)
 	}
-	fmt.Fprintln(wt.w, "] }")
+	wt.wprintf("]\n}")
+	wt.wprintf("\n")
 }
 
 func (wt *WriteTraverser) writeNormal(n *node.NormalNode) {
-	fmt.Fprintf(wt.w, "Normal { vector [ ")
+	wt.wprintf("Normal { vector [ ")
 	for _, v := range n.Vector {
-		fmt.Fprintf(wt.w, "%g %g %g, ", v.X, v.Y, v.Z)
+		wt.wprintf("%g %g %g, ", v.X, v.Y, v.Z)
 	}
-	fmt.Fprintln(wt.w, "] }")
+	wt.wprintf("]\n}")
+	wt.wprintf("\n")
 }
 
 func (wt *WriteTraverser) writeColorNode(c *node.ColorNode) {
-	fmt.Fprintf(wt.w, "Color { color [ ")
+	wt.wprintf("Color { color [ ")
 	for _, col := range c.Color {
-		fmt.Fprintf(wt.w, "%g %g %g, ", col.R, col.G, col.B)
+		wt.wprintf("%g %g %g, ", col.R, col.G, col.B)
 	}
-	fmt.Fprintln(wt.w, "] }")
+	wt.wprintf("]\n}")
+	wt.wprintf("\n")
 }
 
 func (wt *WriteTraverser) writeDirLight(dl *node.DirectionalLight) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%sDirectionalLight {\n", ind)
+	wt.wprintf("%sDirectionalLight {\n", ind)
 	wt.depth++
-	fmt.Fprintf(wt.w, "%sdirection %g %g %g\n", wt.indent(), dl.Direction.X, dl.Direction.Y, dl.Direction.Z)
-	fmt.Fprintf(wt.w, "%sintensity %g\n", wt.indent(), dl.Intensity)
-	fmt.Fprintf(wt.w, "%scolor %g %g %g\n", wt.indent(), dl.Color.R, dl.Color.G, dl.Color.B)
+	wt.wprintf("%sdirection %g %g %g\n", wt.indent(), dl.Direction.X, dl.Direction.Y, dl.Direction.Z)
+	wt.wprintf("%sintensity %g\n", wt.indent(), dl.Intensity)
+	wt.wprintf("%scolor %g %g %g\n", wt.indent(), dl.Color.R, dl.Color.G, dl.Color.B)
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writePointLight(pl *node.PointLight) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%sPointLight {\n", ind)
+	wt.wprintf("%sPointLight {\n", ind)
 	wt.depth++
-	fmt.Fprintf(wt.w, "%slocation %g %g %g\n", wt.indent(), pl.Location.X, pl.Location.Y, pl.Location.Z)
-	fmt.Fprintf(wt.w, "%sintensity %g\n", wt.indent(), pl.Intensity)
-	fmt.Fprintf(wt.w, "%scolor %g %g %g\n", wt.indent(), pl.Color.R, pl.Color.G, pl.Color.B)
+	wt.wprintf("%slocation %g %g %g\n", wt.indent(), pl.Location.X, pl.Location.Y, pl.Location.Z)
+	wt.wprintf("%sintensity %g\n", wt.indent(), pl.Intensity)
+	wt.wprintf("%scolor %g %g %g\n", wt.indent(), pl.Color.R, pl.Color.G, pl.Color.B)
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 func (wt *WriteTraverser) writeViewpoint(vp *node.Viewpoint) {
 	ind := wt.indent()
-	fmt.Fprintf(wt.w, "%s%sViewpoint {\n", ind, wt.defPrefix(vp))
+	wt.wprintf("%s%sViewpoint {\n", ind, wt.defPrefix(vp))
 	wt.depth++
 	if vp.Description != "" {
-		fmt.Fprintf(wt.w, "%sdescription \"%s\"\n", wt.indent(), vp.Description)
+		wt.wprintf("%sdescription \"%s\"\n", wt.indent(), vp.Description)
 	}
-	fmt.Fprintf(wt.w, "%sposition %g %g %g\n", wt.indent(), vp.Position.X, vp.Position.Y, vp.Position.Z)
-	fmt.Fprintf(wt.w, "%sorientation %g %g %g %g\n", wt.indent(), vp.Orientation.X, vp.Orientation.Y, vp.Orientation.Z, vp.Orientation.W)
+	wt.wprintf("%sposition %g %g %g\n", wt.indent(), vp.Position.X, vp.Position.Y, vp.Position.Z)
+	wt.wprintf("%sorientation %g %g %g %g\n", wt.indent(), vp.Orientation.X, vp.Orientation.Y, vp.Orientation.Z, vp.Orientation.W)
 	wt.depth--
-	fmt.Fprintf(wt.w, "%s}\n", ind)
+	wt.wprintf("%s}\n", ind)
 }
 
 // ---------------------------------------------------------------------------

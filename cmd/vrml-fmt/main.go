@@ -23,7 +23,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
 	p := parser.NewParser(f)
 	p.SetBaseDir(filepath.Dir(filename))

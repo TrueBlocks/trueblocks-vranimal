@@ -195,6 +195,7 @@ func TestSplit_TrianglePrism(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	var triF *Face
 	for f := s.Faces; f != nil; f = f.Next {
@@ -266,6 +267,7 @@ func TestSolid_SetFaceMarks2(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	s.SetFaceMarks2(VISITED)
@@ -280,6 +282,7 @@ func TestSplit_DebugGenerate(t *testing.T) {
 	s := makeCube()
 	if s == nil {
 		t.Skip("failed to build cube")
+		return
 	}
 
 	t.Logf("Cube: %d faces, %d edges, %d verts", s.NFaces(), s.NEdges(), s.NVerts())

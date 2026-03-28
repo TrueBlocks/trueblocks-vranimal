@@ -320,7 +320,7 @@ func main() {
 		quarters: quarters,
 		octants:  octants,
 		oValid:   oValid,
-		n1x: n1x, n1z: n1z, tilt1Rad: float64(tilt1Rad),
+		n1x:      n1x, n1z: n1z, tilt1Rad: float64(tilt1Rad),
 		n2x: n2x, n2y: n2y, tilt2Rad: float64(tilt2Rad),
 	}
 	if err := writeAnimatedSplit(outPath, params); err != nil {
@@ -335,13 +335,13 @@ func main() {
 
 // animParams bundles the geometry and plane parameters for the three-stage animation.
 type animParams struct {
-	whole                *solid.Solid
-	half1, half2         *solid.Solid
-	quarters             []*solid.Solid // [4]
-	octants              []*solid.Solid // [8]
-	oValid               [8]bool
-	n1x, n1z, tilt1Rad   float64
-	n2x, n2y, tilt2Rad   float64
+	whole              *solid.Solid
+	half1, half2       *solid.Solid
+	quarters           []*solid.Solid // [4]
+	octants            []*solid.Solid // [8]
+	oValid             [8]bool
+	n1x, n1z, tilt1Rad float64
+	n2x, n2y, tilt2Rad float64
 }
 
 // writeAnimatedSplit creates a VRML97 three-stage animated split demo.
@@ -378,10 +378,14 @@ func writeAnimatedSplit(path string, p animParams) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
-	w := func(s string) { fmt.Fprintln(f, s) }
-	wf := func(format string, args ...any) { fmt.Fprintf(f, format+"\n", args...) }
+	w := func(s string) { _, _ = fmt.Fprintln(f, s) }
+	wf := func(format string, args ...any) { _, _ = fmt.Fprintf(f, format+"\n", args...) }
 
 	// Separation vectors.
 	sep1 := float64(1.5)

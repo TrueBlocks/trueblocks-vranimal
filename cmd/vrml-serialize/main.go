@@ -43,7 +43,11 @@ func encodeFile(wrlPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
 	p := parser.NewParser(f)
 	p.SetBaseDir(filepath.Dir(wrlPath))
@@ -59,10 +63,14 @@ func encodeFile(wrlPath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
 	if err := serializer.Encode(out, nodes); err != nil {
-		os.Remove(vrbPath)
+		_ = os.Remove(vrbPath)
 		return err
 	}
 
@@ -76,7 +84,11 @@ func decodeFile(vrbPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
 	nodes, err := serializer.Decode(f)
 	if err != nil {

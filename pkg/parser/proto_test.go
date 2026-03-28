@@ -346,6 +346,7 @@ MyInline { }
 	def := p.ProtoTable()["MyInline"]
 	if def == nil {
 		t.Fatal("PROTO MyInline not found")
+		return
 	}
 	if !strings.Contains(def.Fields[0].Default, "a.wrl") {
 		t.Errorf("MFString default = %q, expected a.wrl", def.Fields[0].Default)
@@ -400,4 +401,3 @@ SizedBox { size 5 10 15 }
 		t.Errorf("box size = %v, want {5 10 15}", box.Size)
 	}
 }
-

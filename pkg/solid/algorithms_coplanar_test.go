@@ -52,6 +52,7 @@ func TestFace_HasCoplanarNeighbor_None(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	// Sweep upward to make a prism with non-coplanar side faces
 	var triF *Face
@@ -96,6 +97,7 @@ func TestFace_HasCoplanarNeighbor_WithCoplanar(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.Triangulate()
 	s.CalcPlaneEquations()
@@ -126,6 +128,7 @@ func TestFace_AdjustOuterLoop_SingleLoop(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.CalcPlaneEquations()
 
@@ -156,6 +159,7 @@ func TestLoop_HasColinearVerts_Found(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	found := false
@@ -183,6 +187,7 @@ func TestLoop_HasColinearVerts_None(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	for f := s.Faces; f != nil; f = f.Next {
@@ -209,6 +214,7 @@ func TestFace_HasColinearVerts(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	found := false
@@ -238,6 +244,7 @@ func TestSolid_HasColinearVerts_True(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	if !s.HasColinearVerts() {
 		t.Fatal("should detect collinear verts")
@@ -254,6 +261,7 @@ func TestSolid_HasColinearVerts_False(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	if s.HasColinearVerts() {
 		t.Fatal("triangle should not have collinear verts")
@@ -274,6 +282,7 @@ func TestSolid_HasDegenerateFaces_None(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	if f := s.HasDegenerateFaces(); f != nil {
 		t.Fatal("triangle should not be degenerate")
@@ -291,6 +300,7 @@ func TestSolid_RemoveDegenerateFaces(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.RemoveDegenerateFaces()
 }
@@ -309,6 +319,7 @@ func TestSolid_VerifyDetailed_Clean(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	errs := s.VerifyDetailed()
@@ -338,6 +349,7 @@ func TestSolid_VerifyDetailed_Quad(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	errs := s.VerifyDetailed()
@@ -361,6 +373,7 @@ func TestVertex_VertexFaces(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	// Every vertex should be adjacent to at least one face
@@ -396,6 +409,7 @@ func TestVertex_VertexEdges(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	for v := s.Verts; v != nil; v = v.Next {
@@ -420,6 +434,7 @@ func TestVertex_VertexNeighbors(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	// Each vertex in a triangle should have 2 neighbors
@@ -453,6 +468,7 @@ func TestFace_FaceNeighbors(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.Triangulate()
 
@@ -496,6 +512,7 @@ func TestSolid_RemoveCoplanarFaces(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.Triangulate()
 	s.CalcPlaneEquations()
@@ -525,6 +542,7 @@ func TestSolid_RemoveCoplaneColine(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.Triangulate()
 
@@ -547,6 +565,7 @@ func TestSolid_RemoveColinearVerts(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 
 	s.RemoveColinearVerts()

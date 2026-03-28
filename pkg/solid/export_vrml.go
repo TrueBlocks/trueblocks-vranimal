@@ -18,12 +18,16 @@ func (s *Solid) ExportVRML(w io.Writer) error {
 }
 
 // ExportVRMLFile writes the solid as a VRML97 file at the given path.
-func (s *Solid) ExportVRMLFile(path string) error {
+func (s *Solid) ExportVRMLFile(path string) (retErr error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cErr := f.Close(); cErr != nil && retErr == nil {
+			retErr = cErr
+		}
+	}()
 	return s.ExportVRML(f)
 }
 
@@ -56,12 +60,16 @@ func ExportMultiVRML(w io.Writer, solids []*Solid, translations []vec.SFVec3f) e
 }
 
 // ExportMultiVRMLFile writes multiple solids to a VRML97 file with translations.
-func ExportMultiVRMLFile(path string, solids []*Solid, translations []vec.SFVec3f) error {
+func ExportMultiVRMLFile(path string, solids []*Solid, translations []vec.SFVec3f) (retErr error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cErr := f.Close(); cErr != nil && retErr == nil {
+			retErr = cErr
+		}
+	}()
 	return ExportMultiVRML(f, solids, translations)
 }
 

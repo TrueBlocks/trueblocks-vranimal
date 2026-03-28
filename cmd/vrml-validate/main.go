@@ -27,7 +27,9 @@ func main() {
 		p := parser.NewParser(f)
 		p.SetBaseDir(filepath.Dir(path))
 		nodes := p.Parse()
-		f.Close()
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: close error: %v\n", path, err)
+		}
 
 		if errs := p.Errors(); len(errs) > 0 {
 			for _, e := range errs {

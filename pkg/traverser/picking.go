@@ -76,7 +76,7 @@ func (p *Picker) HandlePointer(screenX, screenY float64, action PointerAction) b
 	ny := -((screenY/float64(p.height))*2 - 1) // Y is inverted
 
 	// Set up raycaster from camera
-	p.raycaster.SetFromCamera(p.cam, float32(nx), float32(ny))
+	_ = p.raycaster.SetFromCamera(p.cam, float32(nx), float32(ny))
 
 	// If we have a captured sensor (drag in progress), handle it
 	if p.captured != nil {

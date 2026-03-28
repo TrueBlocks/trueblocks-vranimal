@@ -89,6 +89,7 @@ func TestLmev2_NearEndpoint(t *testing.T) {
 
 	if newV == nil || newE == nil {
 		t.Fatal("Lmev2 returned nil for near-endpoint split")
+		return
 	}
 
 	// Topology should gain exactly 1 vertex and 1 edge, same faces
@@ -207,6 +208,7 @@ func TestFaceContains_NearEdge(t *testing.T) {
 	topFace := faceWithNormal(cube, vec.SFVec3f{X: 0, Y: 0, Z: 1})
 	if topFace == nil {
 		t.Fatal("could not find +Z face")
+		return
 	}
 
 	// Get edge midpoint, then offset slightly into the face interior
@@ -718,6 +720,7 @@ func TestGenerate_NearMissEdge(t *testing.T) {
 	topFace := faceWithNormal(cube, vec.SFVec3f{X: 0, Y: 0, Z: 1})
 	if topFace == nil {
 		t.Fatal("could not find +Z face")
+		return
 	}
 
 	topZ := topFace.GetFirstHe().Vertex.Loc.Z

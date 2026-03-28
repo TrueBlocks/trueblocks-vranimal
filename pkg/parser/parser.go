@@ -1368,10 +1368,10 @@ func (p *Parser) resolveInline(inl *node.Inline) {
 		sub.defTable = p.defTable
 		sub.protoTable = p.protoTable
 		nodes := sub.Parse()
-		r.Close()
-		for _, e := range sub.errors {
-			p.errors = append(p.errors, e)
+		if err := r.Close(); err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("close error: %v", err))
 		}
+		p.errors = append(p.errors, sub.errors...)
 		for k, v := range sub.defTable {
 			p.defTable[k] = v
 		}

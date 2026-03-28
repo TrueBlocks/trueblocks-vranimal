@@ -54,7 +54,9 @@ func main() {
 	p := parser.NewParser(f)
 	p.SetBaseDir(baseDir)
 	vrmlNodes := p.Parse()
-	f.Close()
+	if err := f.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+	}
 
 	if errs := p.Errors(); len(errs) > 0 {
 		fmt.Fprintf(os.Stderr, "Parse warnings:\n")
@@ -156,7 +158,9 @@ func main() {
 	picker.OnAnchor = func(urls []string, description string) {
 		if len(urls) > 0 {
 			fmt.Fprintf(os.Stderr, "Anchor activated: %s\n", urls[0])
-			exec.Command("open", urls[0]).Start()
+			if err := exec.Command("open", urls[0]).Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to open URL: %v\n", err)
+			}
 		}
 	}
 	if at.HasSensor {

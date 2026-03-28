@@ -20,7 +20,9 @@ var (
 )
 
 func main() {
-	os.MkdirAll("examples/bool_demos", 0755)
+	if err := os.MkdirAll("examples/bool_demos", 0755); err != nil {
+		log.Fatal(err)
+	}
 
 	genDisjointUnion()
 	genContainedIntersection()

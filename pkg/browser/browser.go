@@ -49,10 +49,10 @@ type Browser struct {
 	FogStack        []*node.Fog
 
 	// Event engine
-	Routes       []*node.Route
-	TimeSensors  []*node.TimeSensor
-	startTime    time.Time // wall-clock origin for VRML time
-	simTime      float64   // current simulation time in seconds
+	Routes      []*node.Route
+	TimeSensors []*node.TimeSensor
+	startTime   time.Time // wall-clock origin for VRML time
+	simTime     float64   // current simulation time in seconds
 
 	// Route change-detection: only fire when source value changes.
 	// Keyed by route index. VRML97 routes are event-driven.
@@ -346,7 +346,7 @@ func (b *Browser) processRoutes() {
 // routeValueEqual compares two route values for equality.
 // Handles non-comparable types (slices) by always treating them as changed.
 func routeValueEqual(a, b any) bool {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	return a == b
 }
 

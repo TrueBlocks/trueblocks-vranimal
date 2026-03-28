@@ -43,6 +43,7 @@ func TestLmev(t *testing.T) {
 	nv, ne := Lmev(v.He, vec.SFVec3f{X: 1})
 	if nv == nil || ne == nil {
 		t.Fatal("nil result")
+		return
 	}
 	if s.NVerts() != 2 {
 		t.Fatalf("expected 2 verts, got %d", s.NVerts())
@@ -636,6 +637,7 @@ func TestHalfEdge_IsWide(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	// All angles in a triangle are < 180, so IsWide should be false
 	s.ForEachFace(func(f *Face) bool {
@@ -712,6 +714,7 @@ func TestVertex_CalcNormal(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.CalcPlaneEquations()
 	s.CalcVertexNormals()
@@ -791,6 +794,7 @@ func TestFace_IsPlanar(t *testing.T) {
 	s := BuildFromIndexSet(positions, indices, vec.Red)
 	if s == nil {
 		t.Skip("BuildFromIndexSet returned nil")
+		return
 	}
 	s.CalcPlaneEquations()
 	s.ForEachFace(func(f *Face) bool {

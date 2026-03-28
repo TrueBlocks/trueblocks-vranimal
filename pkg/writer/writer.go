@@ -38,7 +38,7 @@ func (wr *Writer) WriteScene(nodes []node.Node) {
 }
 
 func (wr *Writer) printf(format string, args ...any) {
-	fmt.Fprintf(wr.w, format, args...)
+	_, _ = fmt.Fprintf(wr.w, format, args...)
 }
 
 func (wr *Writer) indentStr() string {

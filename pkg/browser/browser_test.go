@@ -325,7 +325,7 @@ func TestToFloat32(t *testing.T) {
 	if !ok || v != 3.14 {
 		t.Fatalf("float64: %g %v", v, ok)
 	}
-	v, ok = toFloat32(float64(2.71))
+	_, ok = toFloat32(float64(2.71))
 	if !ok {
 		t.Fatal("float64 should convert")
 	}
@@ -664,9 +664,7 @@ func TestGetField_ValueChanged_AllInterpolators(t *testing.T) {
 	}
 	for _, tt := range tests {
 		val := getField(tt.n, node.ValueChangedStr)
-		if val == nil {
-			// Some interpolators may return zero-value; that's ok
-		}
+		_ = val // Some interpolators may return zero-value; that's ok
 	}
 }
 

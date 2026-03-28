@@ -32,6 +32,7 @@ func TestBuildFromIndexSet_Cube(t *testing.T) {
 	s := BuildFromIndexSet(verts, indices, color)
 	if s == nil {
 		t.Fatal("BuildFromIndexSet returned nil")
+		return
 	}
 
 	nF, nV, nE := 0, 0, 0

@@ -362,9 +362,7 @@ func (p *Parser) instantiateProto(def *ProtoDefinition) []node.Node {
 	nodes := sub.Parse()
 
 	// Propagate errors and DEF names
-	for _, e := range sub.errors {
-		p.errors = append(p.errors, e)
-	}
+	p.errors = append(p.errors, sub.errors...)
 	for k, v := range sub.defTable {
 		p.defTable[k] = v
 	}

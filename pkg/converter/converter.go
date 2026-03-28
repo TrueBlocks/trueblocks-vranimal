@@ -327,7 +327,11 @@ func loadTexture(url string, baseDir string) *texture.Texture2D {
 		fmt.Fprintf(os.Stderr, "Warning: cannot load texture %s: %v\n", url, err)
 		return nil
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: close error for texture %s: %v\n", url, err)
+		}
+	}()
 
 	img, _, err := image.Decode(f)
 	if err != nil {
