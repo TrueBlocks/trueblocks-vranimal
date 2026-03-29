@@ -79,11 +79,17 @@ func main() {
 	a := app.App()
 	scene := core.NewNode()
 
-	// Maximize window on startup
+	// Restore persisted window geometry, or maximize on first run
 	if gw, ok := a.IWindow.(*window.GlfwWindow); ok {
-		w, h := gw.ScreenResolution(nil)
-		gw.SetSize(w, h)
-		gw.SetPos(0, 0)
+		ss := loadSettings()
+		if ss.WinWidth > 0 && ss.WinHeight > 0 {
+			gw.SetSize(ss.WinWidth, ss.WinHeight)
+			gw.SetPos(ss.WinX, ss.WinY)
+		} else {
+			w, h := gw.ScreenResolution(nil)
+			gw.SetSize(w, h)
+			gw.SetPos(0, 0)
+		}
 	}
 
 	// Convert VRML scene to g3n (returns node map for animation)
@@ -250,9 +256,15 @@ func main() {
 		// Picker uses window coordinates (mouse events), not framebuffer size
 		wW, wH := a.GetSize()
 		picker.SetSize(wW, wH)
+		persistSettings(vs)
 	}
 	a.Subscribe(window.OnWindowSize, onResize)
 	onResize("", nil)
+
+	// Persist window position on move
+	a.Subscribe(window.OnWindowPos, func(evname string, ev interface{}) {
+		persistSettings(vs)
+	})
 
 	// Delete key clears all geometry from the scene
 	a.Subscribe(window.OnKeyDown, func(evname string, ev interface{}) {

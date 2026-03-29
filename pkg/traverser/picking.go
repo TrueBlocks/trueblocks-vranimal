@@ -1,7 +1,9 @@
 package traverser
 
 import (
+	"fmt"
 	"math"
+	"os"
 
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/core"
@@ -67,6 +69,9 @@ const (
 // Returns true if a sensor consumed the event.
 func (p *Picker) HandlePointer(screenX, screenY float64, action PointerAction) bool {
 	if p.width == 0 || p.height == 0 {
+		if action == PointerDown {
+			fmt.Fprintf(os.Stderr, "pick: size=0 (%d×%d)\n", p.width, p.height)
+		}
 		return false
 	}
 
@@ -93,6 +98,9 @@ func (p *Picker) HandlePointer(screenX, screenY float64, action PointerAction) b
 
 	// Cast ray against scene
 	intersects := p.raycaster.IntersectObject(p.scene, true)
+	if action == PointerDown {
+		fmt.Fprintf(os.Stderr, "pick: ndc=(%.2f,%.2f) hits=%d\n", nx, ny, len(intersects))
+	}
 	if len(intersects) == 0 {
 		return false
 	}
@@ -103,6 +111,11 @@ func (p *Picker) HandlePointer(screenX, screenY float64, action PointerAction) b
 
 	// Check for Anchor parent (even if no pointing device sensors)
 	anchor := findAnchorParent(hit.Object)
+
+	if action == PointerDown {
+		fmt.Fprintf(os.Stderr, "pick: obj=%T children=%v anchor=%v\n",
+			hit.Object, children != nil, anchor != nil)
+	}
 
 	if children == nil && anchor == nil {
 		return false

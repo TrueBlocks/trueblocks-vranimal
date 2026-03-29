@@ -112,6 +112,10 @@ type viewerSettings struct {
 	AxesVisible bool   `json:"axesVisible"`
 	LastCase    string `json:"lastCase,omitempty"`
 	LastSaveDir string `json:"lastSaveDir,omitempty"`
+	WinWidth    int    `json:"winWidth,omitempty"`
+	WinHeight   int    `json:"winHeight,omitempty"`
+	WinX        int    `json:"winX,omitempty"`
+	WinY        int    `json:"winY,omitempty"`
 }
 
 func settingsPath() string {
@@ -208,6 +212,12 @@ func persistSettings(vs *viewerState) {
 	}
 	if vs.currentCase != nil {
 		s.LastCase = vs.currentCase.name
+	}
+	// Capture current window geometry
+	a := app.App()
+	if gw, ok := a.IWindow.(*window.GlfwWindow); ok {
+		s.WinWidth, s.WinHeight = gw.GetSize()
+		s.WinX, s.WinY = gw.GetPos()
 	}
 	saveSettings(s)
 }
