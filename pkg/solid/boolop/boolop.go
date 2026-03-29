@@ -1,6 +1,8 @@
 package boolop
 
 import (
+	"math"
+
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/algorithms"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/euler"
@@ -354,7 +356,23 @@ func boolOpCore(a, b *base.Solid, op int, perturb bool) (*base.Solid, bool) {
 		return nil, false
 	}
 	br.Complete()
+	if perturb && br.Result != nil {
+		snapVertices(br.Result)
+	}
 	return br.Result, br.Result != nil
+}
+
+// snapVertices removes noise introduced by the degeneracy perturbation.
+// For each vertex coordinate, if rounding to 4 decimal places changes the
+// value by less than 2*eps, snap it. This collapses 1.5001 → 1.5,
+// -0.4999 → -0.5, etc., while leaving legitimately precise coordinates alone.
+func snapVertices(s *base.Solid) {
+	const snapGrid = 1e-3 // coarser than eps=1e-4
+	for v := s.Verts; v != nil; v = v.Next {
+		v.Loc.X = math.Round(v.Loc.X/snapGrid) * snapGrid
+		v.Loc.Y = math.Round(v.Loc.Y/snapGrid) * snapGrid
+		v.Loc.Z = math.Round(v.Loc.Z/snapGrid) * snapGrid
+	}
 }
 
 func Union(a, b *base.Solid) (*base.Solid, bool) {
