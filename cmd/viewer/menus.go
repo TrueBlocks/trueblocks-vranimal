@@ -23,7 +23,10 @@ import (
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
-	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/algorithms"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/boolop"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/primitives"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
@@ -55,16 +58,16 @@ var (
 
 type boolCase struct {
 	name  string
-	makeA func() *solid.Solid
-	makeB func() *solid.Solid
+	makeA func() *base.Solid
+	makeB func() *base.Solid
 }
 
 var boolCaseMap = map[string]*boolCase{
 	"partial_penetration": {
 		name:  "partial_penetration",
-		makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(0.5, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(0.5, lightBlue)
 			boolDoScale(s, 1, 1, 2)
 			boolDoTranslate(s, 0.25, 0.25, -0.25)
 			return s
@@ -72,18 +75,18 @@ var boolCaseMap = map[string]*boolCase{
 	},
 	"fully_contained": {
 		name:  "fully_contained",
-		makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(0.5, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(0.5, lightBlue)
 			boolDoTranslate(s, 0.25, 0.25, 0.25)
 			return s
 		},
 	},
 	"through": {
 		name:  "through",
-		makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(0.5, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(0.5, lightBlue)
 			boolDoScale(s, 1, 1, 4)
 			boolDoTranslate(s, 0.25, 0.25, -0.15)
 			return s
@@ -91,18 +94,18 @@ var boolCaseMap = map[string]*boolCase{
 	},
 	"edge_on_edge": {
 		name:  "edge_on_edge",
-		makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(1.0, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(1.0, lightBlue)
 			boolDoTranslate(s, 0, -1, -1)
 			return s
 		},
 	},
 	"rotated_elongated": {
 		name:  "rotated_elongated",
-		makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(0.5, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(0.5, lightBlue)
 			boolDoScale(s, 1, 1, 4)
 			boolDoTranslate(s, -0.25, -0.25, -0.5)
 			boolDoTranslate(s, 0.5, 0, -0.25)
@@ -113,10 +116,10 @@ var boolCaseMap = map[string]*boolCase{
 	},
 	"hexagon_prism": {
 		name: "hexagon_prism",
-		makeA: func() *solid.Solid {
+		makeA: func() *base.Solid {
 			return boolMakeSweptLamina(boolMakeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, yellow)
 		},
-		makeB: func() *solid.Solid {
+		makeB: func() *base.Solid {
 			s := boolMakeSweptLamina(boolMakeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, lightBlue)
 			boolDoTranslate(s, 0.5, 0.3, -0.4)
 			return s
@@ -124,24 +127,24 @@ var boolCaseMap = map[string]*boolCase{
 	},
 	"sphere_vs_cube": {
 		name:  "sphere_vs_cube",
-		makeA: func() *solid.Solid { return solid.MakeSphere(1.0, 10, 10, yellow) },
-		makeB: func() *solid.Solid {
-			s := solid.MakeCube(1.0, lightBlue)
+		makeA: func() *base.Solid { return primitives.MakeSphere(1.0, 10, 10, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeCube(1.0, lightBlue)
 			boolDoTranslate(s, 0, 0, -1)
 			return s
 		},
 	},
 }
 
-func boolDoTranslate(s *solid.Solid, x, y, z float64) {
+func boolDoTranslate(s *base.Solid, x, y, z float64) {
 	s.TransformGeometry(vec.TranslationMatrix(x, y, z))
 }
 
-func boolDoScale(s *solid.Solid, sx, sy, sz float64) {
+func boolDoScale(s *base.Solid, sx, sy, sz float64) {
 	s.TransformGeometry(vec.ScaleMatrix(sx, sy, sz))
 }
 
-func boolDoRotateCenter(s *solid.Solid, degrees float64, axis vec.SFVec3f) {
+func boolDoRotateCenter(s *base.Solid, degrees float64, axis vec.SFVec3f) {
 	mn, mx := s.Extents()
 	cx := (mn.X + mx.X) / 2
 	cy := (mn.Y + mx.Y) / 2
@@ -166,9 +169,9 @@ func boolMakeHexVerts(radius float64) []vec.SFVec3f {
 	return verts
 }
 
-func boolMakeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *solid.Solid {
-	s := solid.MakeLamina(verts, color)
-	s.TranslationalSweep(s.GetFirstFace(), dir)
+func boolMakeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *base.Solid {
+	s := primitives.MakeLamina(verts, color)
+	algorithms.TranslationalSweep(s, s.GetFirstFace(), dir)
 	s.CalcPlaneEquations()
 	s.Renumber()
 	return s
@@ -189,13 +192,13 @@ func parseBoolFilename(stem string) (caseName string, op int, ok bool) {
 
 	// The operation is the last _word
 	if strings.HasSuffix(s, "_union") {
-		return s[:len(s)-6], solid.BoolUnion, true
+		return s[:len(s)-6], base.BoolUnion, true
 	}
 	if strings.HasSuffix(s, "_intersection") {
-		return s[:len(s)-13], solid.BoolIntersection, true
+		return s[:len(s)-13], base.BoolIntersection, true
 	}
 	if strings.HasSuffix(s, "_difference") {
-		return s[:len(s)-11], solid.BoolDifference, true
+		return s[:len(s)-11], base.BoolDifference, true
 	}
 	return "", 0, false
 }
@@ -219,8 +222,8 @@ type viewerState struct {
 
 	// Bool demo state
 	currentCase *boolCase    // selected case (nil = none)
-	solidA      *solid.Solid // current A solid
-	solidB      *solid.Solid // current B solid
+	solidA      *base.Solid  // current A solid
+	solidB      *base.Solid  // current B solid
 	meshANode   *core.Node   // g3n node for A mesh
 	meshBNode   *core.Node   // g3n node for B mesh
 	resultNodes []*core.Node // g3n nodes for bool results
@@ -443,19 +446,19 @@ func buildBoolMenu(vs *viewerState) *gui.Menu {
 	union := m.AddOption("Union (A ∪ B)")
 	union.SetShortcut(window.ModControl, window.KeyU)
 	union.Subscribe(gui.OnClick, func(string, interface{}) {
-		runBoolOp(vs, solid.BoolUnion, "Union")
+		runBoolOp(vs, base.BoolUnion, "Union")
 	})
 
 	inter := m.AddOption("Intersection (A ∩ B)")
 	inter.SetShortcut(window.ModControl, window.KeyI)
 	inter.Subscribe(gui.OnClick, func(string, interface{}) {
-		runBoolOp(vs, solid.BoolIntersection, "Intersection")
+		runBoolOp(vs, base.BoolIntersection, "Intersection")
 	})
 
 	diff := m.AddOption("Difference (A − B)")
 	diff.SetShortcut(window.ModControl, window.KeyD)
 	diff.Subscribe(gui.OnClick, func(string, interface{}) {
-		runBoolOp(vs, solid.BoolDifference, "Difference")
+		runBoolOp(vs, base.BoolDifference, "Difference")
 	})
 
 	return m
@@ -533,7 +536,7 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	a := vs.currentCase.makeA()
 	b := vs.currentCase.makeB()
 
-	result, ok := solid.BoolOp(a, b, op)
+	result, ok := boolop.BoolOp(a, b, op)
 	if !ok || result == nil {
 		fmt.Fprintf(os.Stderr, "Bool %s: operation failed or empty result\n", name)
 		return
@@ -546,7 +549,7 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	fmt.Fprintf(os.Stderr, "Bool %s: %s, bbox [%.2f,%.2f,%.2f]-[%.2f,%.2f,%.2f]\n",
 		name, stats, mn.X, mn.Y, mn.Z, mx.X, mx.Y, mx.Z)
 
-	errs := result.VerifyDetailed()
+	errs := algorithms.VerifyDetailed(result)
 	if len(errs) > 0 {
 		fmt.Fprintf(os.Stderr, "Bool %s: %d errors\n", name, len(errs))
 		for _, e := range errs {
@@ -566,11 +569,11 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	resultGroup := core.NewNode()
 	span := float32(vs.resultSpan)
 	switch op {
-	case solid.BoolUnion:
+	case base.BoolUnion:
 		resultGroup.SetPosition(span, 0, 0)
-	case solid.BoolIntersection:
+	case base.BoolIntersection:
 		resultGroup.SetPosition(0, span, 0)
-	case solid.BoolDifference:
+	case base.BoolDifference:
 		resultGroup.SetPosition(-span, 0, 0)
 	}
 	resultGroup.Add(mesh)
@@ -582,7 +585,7 @@ func runBoolOp(vs *viewerState, op int, name string) {
 }
 
 // solidToMesh converts a B-rep Solid into a g3n Mesh for rendering.
-func solidToMesh(s *solid.Solid, color *math32.Color) *graphic.Mesh {
+func solidToMesh(s *base.Solid, color *math32.Color) *graphic.Mesh {
 	s.Renumber()
 
 	positions := math32.NewArrayF32(0, 0)
@@ -596,7 +599,7 @@ func solidToMesh(s *solid.Solid, color *math32.Color) *graphic.Mesh {
 		}
 		// Collect face vertices
 		var faceVerts []vec.SFVec3f
-		f.LoopOut.ForEachHe(func(he *solid.HalfEdge) bool {
+		f.LoopOut.ForEachHe(func(he *base.HalfEdge) bool {
 			faceVerts = append(faceVerts, he.Vertex.Loc)
 			return true
 		})
@@ -642,7 +645,7 @@ func solidToMesh(s *solid.Solid, color *math32.Color) *graphic.Mesh {
 }
 
 // solidStatsStr returns a compact stats string for a solid.
-func solidStatsStr(s *solid.Solid) string {
+func solidStatsStr(s *base.Solid) string {
 	nF, nV, nE, nH := 0, 0, 0, 0
 	for f := s.Faces; f != nil; f = f.Next {
 		nF++
@@ -726,7 +729,7 @@ func showEulerStats(vs *viewerState) {
 		fmt.Fprintf(os.Stderr, "Euler: no solids loaded (select a case from Bool menu)\n")
 		return
 	}
-	for i, s := range []*solid.Solid{vs.solidA, vs.solidB} {
+	for i, s := range []*base.Solid{vs.solidA, vs.solidB} {
 		label := "A"
 		if i == 1 {
 			label = "B"
@@ -736,7 +739,7 @@ func showEulerStats(vs *viewerState) {
 		}
 		stats := solidStatsStr(s)
 		fmt.Fprintf(os.Stderr, "Solid %s: %s\n", label, stats)
-		errs := s.VerifyDetailed()
+		errs := algorithms.VerifyDetailed(s)
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "  %v\n", e)
 		}
@@ -782,7 +785,7 @@ func showHalfEdgeInfo(vs *viewerState) {
 		fmt.Fprintf(os.Stderr, "HalfEdge: no solids loaded (select a case from Bool menu)\n")
 		return
 	}
-	for i, sol := range []*solid.Solid{vs.solidA, vs.solidB} {
+	for i, sol := range []*base.Solid{vs.solidA, vs.solidB} {
 		label := "A"
 		if i == 1 {
 			label = "B"
