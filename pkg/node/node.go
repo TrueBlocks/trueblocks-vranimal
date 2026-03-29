@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/geo"
-	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
@@ -39,10 +39,10 @@ type BaseNode struct {
 	IsMaps     []string
 }
 
-func (n *BaseNode) GetName() string             { return n.Name }
-func (n *BaseNode) SetName(name string)         { n.Name = name }
-func (n *BaseNode) GetNodeType() NodeType       { return n.NodeType }
-func (n *BaseNode) GetBounds() geo.BoundingBox  { return n.Bounds }
+func (n *BaseNode) GetName() string            { return n.Name }
+func (n *BaseNode) SetName(name string)        { n.Name = name }
+func (n *BaseNode) GetNodeType() NodeType      { return n.NodeType }
+func (n *BaseNode) GetBounds() geo.BoundingBox { return n.Bounds }
 
 // AddRoute adds a route originating from this node.
 func (n *BaseNode) AddRoute(r *Route) {
@@ -68,12 +68,12 @@ func (n *BaseNode) HasRoutes() bool { return len(n.Routes) > 0 }
 
 // Route connects an output field on a source to an input on a destination.
 type Route struct {
-	Source   Node
-	SrcField string
+	Source      Node
+	SrcField    string
 	Destination Node
-	DstField string
-	Internal bool
-	RouteID  int64
+	DstField    string
+	Internal    bool
+	RouteID     int64
 }
 
 var nextRouteID int64
@@ -609,7 +609,7 @@ func NewSwitch() *Switch {
 // GeometryNode is the interface for all renderable geometry.
 type GeometryNode interface {
 	Node
-	GetSolid() *solid.Solid
+	GetSolid() *base.Solid
 }
 
 // BaseGeometry holds fields common to geometry nodes.
@@ -619,7 +619,7 @@ type BaseGeometry struct {
 	Convex      bool
 	CreaseAngle float64
 	IsSolid     bool
-	Geom        *solid.Solid
+	Geom        *base.Solid
 	Native      bool
 }
 
@@ -632,7 +632,7 @@ func newBaseGeometry() BaseGeometry {
 	}
 }
 
-func (g *BaseGeometry) GetSolid() *solid.Solid { return g.Geom }
+func (g *BaseGeometry) GetSolid() *base.Solid { return g.Geom }
 
 // Box represents a rectangular parallelepiped.
 type Box struct {

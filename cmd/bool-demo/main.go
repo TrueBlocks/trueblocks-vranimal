@@ -6,7 +6,10 @@ import (
 	"math"
 	"os"
 
-	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/boolop"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/export"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/primitives"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
@@ -36,89 +39,89 @@ func main() {
 }
 
 func genDisjointUnion() {
-	a := solid.MakeCube(1.0, red)
-	b := solid.MakeCube(1.0, green)
+	a := primitives.MakeCube(1.0, red)
+	b := primitives.MakeCube(1.0, green)
 	b.TransformGeometry(vec.TranslationMatrix(4.0, 0, 0))
 
-	result, ok := solid.Union(a, b)
+	result, ok := boolop.Union(a, b)
 	if !ok || result == nil {
 		log.Fatal("disjoint union failed")
 	}
-	must(result.ExportVRMLFile("examples/bool_demos/disjoint_union.wrl"))
+	must(export.VRMLFile(result, "examples/bool_demos/disjoint_union.wrl"))
 	fmt.Println("  disjoint_union.wrl")
 }
 
 func genContainedIntersection() {
-	a := solid.MakeCube(2.0, red)
-	b := solid.MakeCube(0.5, green)
+	a := primitives.MakeCube(2.0, red)
+	b := primitives.MakeCube(0.5, green)
 
-	result, ok := solid.Intersection(a, b)
+	result, ok := boolop.Intersection(a, b)
 	if !ok || result == nil {
 		log.Fatal("contained intersection failed")
 	}
-	must(result.ExportVRMLFile("examples/bool_demos/contained_intersection.wrl"))
+	must(export.VRMLFile(result, "examples/bool_demos/contained_intersection.wrl"))
 	fmt.Println("  contained_intersection.wrl")
 }
 
 func genContainedDifference() {
-	a := solid.MakeCube(2.0, red)
-	b := solid.MakeCube(0.5, green)
+	a := primitives.MakeCube(2.0, red)
+	b := primitives.MakeCube(0.5, green)
 
-	result, ok := solid.Difference(a, b)
+	result, ok := boolop.Difference(a, b)
 	if !ok || result == nil {
 		log.Fatal("contained difference failed")
 	}
-	must(result.ExportVRMLFile("examples/bool_demos/contained_difference.wrl"))
+	must(export.VRMLFile(result, "examples/bool_demos/contained_difference.wrl"))
 	fmt.Println("  contained_difference.wrl")
 }
 
 func genBContainsAUnion() {
-	a := solid.MakeCube(0.5, red)
-	b := solid.MakeCube(2.0, green)
+	a := primitives.MakeCube(0.5, red)
+	b := primitives.MakeCube(2.0, green)
 
-	result, ok := solid.Union(a, b)
+	result, ok := boolop.Union(a, b)
 	if !ok || result == nil {
 		log.Fatal("b-contains-a union failed")
 	}
-	must(result.ExportVRMLFile("examples/bool_demos/b_contains_a_union.wrl"))
+	must(export.VRMLFile(result, "examples/bool_demos/b_contains_a_union.wrl"))
 	fmt.Println("  b_contains_a_union.wrl")
 }
 
 func genInputsOverlapping() {
-	a := solid.MakeCube(1.0, red)
-	b := solid.MakeCube(1.0, blue)
+	a := primitives.MakeCube(1.0, red)
+	b := primitives.MakeCube(1.0, blue)
 	b.TransformGeometry(vec.TranslationMatrix(1.0, 0, 0))
 
-	must(solid.ExportMultiVRMLFile(
+	must(export.MultiVRMLFile(
 		"examples/bool_demos/overlapping_cubes_input.wrl",
-		[]*solid.Solid{a, b},
+		[]*base.Solid{a, b},
 		nil,
 	))
 	fmt.Println("  overlapping_cubes_input.wrl")
 }
 
 func genInputsRotated() {
-	a := solid.MakeCube(1.0, yellow)
-	b := solid.MakeCube(1.0, purple)
+	a := primitives.MakeCube(1.0, yellow)
+	b := primitives.MakeCube(1.0, purple)
 	radians := 45.0 * math.Pi / 180.0
 	rot := vec.SFRotation{X: 0, Y: 1, Z: 0, W: radians}
 	b.TransformGeometry(vec.RotationMatrix(rot))
 
-	must(solid.ExportMultiVRMLFile(
+	must(export.MultiVRMLFile(
 		"examples/bool_demos/rotated_cubes_input.wrl",
-		[]*solid.Solid{a, b},
+		[]*base.Solid{a, b},
 		nil,
 	))
 	fmt.Println("  rotated_cubes_input.wrl")
 }
 
 func genInputsCubeSphere() {
-	a := solid.MakeCube(1.0, cyan)
-	b := solid.MakeSphere(1.2, 16, 16, red)
+	a := primitives.MakeCube(1.0, cyan)
+	b := primitives.MakeSphere(1.2, 16, 16, red)
 
-	must(solid.ExportMultiVRMLFile(
+	must(export.MultiVRMLFile(
 		"examples/bool_demos/cube_sphere_input.wrl",
-		[]*solid.Solid{a, b},
+		[]*base.Solid{a, b},
 		nil,
 	))
 	fmt.Println("  cube_sphere_input.wrl")
