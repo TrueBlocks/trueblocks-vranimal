@@ -357,26 +357,6 @@ func boolOpCore(a, b *base.Solid, op int, perturb bool) (*base.Solid, bool) {
 	return br.Result, br.Result != nil
 }
 
-func countLoopVerts(f *base.Face) int {
-	if f.NLoops() == 0 || f.LoopOut == nil {
-		return 0
-	}
-	he := f.LoopOut.GetFirstHe()
-	if he == nil {
-		return 0
-	}
-	cnt := 0
-	start := he
-	for {
-		cnt++
-		he = he.Next
-		if he == start {
-			break
-		}
-	}
-	return cnt
-}
-
 func Union(a, b *base.Solid) (*base.Solid, bool) {
 	return BoolOp(a, b, base.BoolUnion)
 }
