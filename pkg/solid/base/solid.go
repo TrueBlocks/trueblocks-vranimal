@@ -441,3 +441,117 @@ type Plane struct {
 func (pl *Plane) GetDistance(p vec.SFVec3f) float64 {
 	return pl.Normal.Dot(p) + pl.D
 }
+
+func (s *Solid) Cleanup() {
+	s.Edges = nil
+	s.NEdge = 0
+	s.Verts = nil
+	s.NVert = 0
+
+	for f := s.Faces; f != nil; f = f.Next {
+		for _, l := range f.Loops {
+			l.ForEachHe(func(he *HalfEdge) bool {
+				if he.Edge != nil && !he.Edge.Marked(VISITED) {
+					he.Edge.Mark = VISITED
+					s.AddEdge(he.Edge)
+				}
+				if he.Vertex != nil && !he.Vertex.IsMarked(VISITED) {
+					he.Vertex.Mark = VISITED
+					s.AddVertex(he.Vertex)
+				}
+				return true
+			})
+		}
+	}
+
+	for e := s.Edges; e != nil; e = e.Next {
+		e.Mark = 0
+	}
+	for v := s.Verts; v != nil; v = v.Next {
+		v.Mark = 0
+	}
+}
+
+func (s *Solid) Copy() *Solid {
+	ns := NewSolid()
+	if s.Verts == nil {
+		return ns
+	}
+
+	vmap := make(map[*Vertex]*Vertex)
+	for v := s.Verts; v != nil; v = v.Next {
+		nv := NewVertexVec(v.Loc)
+		nv.Index = v.Index
+		nv.Mark = v.Mark
+		nv.Scratch = v.Scratch
+		if v.Data != nil {
+			d := *v.Data
+			nv.Data = &d
+		}
+		ns.AddVertex(nv)
+		vmap[v] = nv
+	}
+
+	hemap := make(map[*HalfEdge]*HalfEdge)
+
+	for f := s.Faces; f != nil; f = f.Next {
+		nf := &Face{
+			Solid:  ns,
+			Normal: f.Normal,
+			D:      f.D,
+			Index:  f.Index,
+			Mark1:  f.Mark1,
+			Mark2:  f.Mark2,
+		}
+		if f.Data != nil {
+			d := *f.Data
+			nf.Data = &d
+		}
+		ns.AddFace(nf)
+
+		for _, l := range f.Loops {
+			nl := &Loop{Face: nf}
+			isOuter := l == f.LoopOut
+			nf.AddLoop(nl, isOuter)
+
+			l.ForEachHe(func(he *HalfEdge) bool {
+				nv := vmap[he.Vertex]
+				nhe := &HalfEdge{
+					Vertex: nv,
+					Loop:   nl,
+					Mark:   he.Mark,
+				}
+				if he.Data != nil {
+					d := *he.Data
+					nhe.Data = &d
+				}
+				nhe.Next = nhe
+				nhe.Prev = nhe
+				nl.AddHalfEdge(nhe)
+				if nv.He == nil {
+					nv.He = nhe
+				}
+				hemap[he] = nhe
+				return true
+			})
+		}
+	}
+
+	for e := s.Edges; e != nil; e = e.Next {
+		ne := &Edge{
+			Index: e.Index,
+			Mark:  e.Mark,
+		}
+		if nhe1, ok := hemap[e.He1]; ok {
+			ne.He1 = nhe1
+			nhe1.Edge = ne
+		}
+		if nhe2, ok := hemap[e.He2]; ok {
+			ne.He2 = nhe2
+			nhe2.Edge = ne
+		}
+		ns.AddEdge(ne)
+	}
+
+	return ns
+}
