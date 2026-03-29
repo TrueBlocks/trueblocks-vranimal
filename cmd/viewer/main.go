@@ -233,6 +233,9 @@ func main() {
 	mb := setupMenuBar(vs)
 	scene.Add(mb)
 
+	// Restore persisted settings (wireframe, last bool case)
+	restoreLastCase(vs)
+
 	// Background color
 	bg := converter.GetBackground(vrmlNodes)
 	if bg != nil && len(bg.SkyColor) > 0 {

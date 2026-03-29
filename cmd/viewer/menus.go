@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/g3n/engine/app"
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
@@ -101,6 +103,40 @@ func boolDoRotateCenter(s *base.Solid, degrees float64, axis vec.SFVec3f) {
 	boolDoTranslate(s, cx, cy, cz)
 }
 
+// ────────────────────────── Settings persistence ──────────────────────────
+
+type viewerSettings struct {
+	Wireframe   bool   `json:"wireframe"`
+	AxesVisible bool   `json:"axesVisible"`
+	LastCase    string `json:"lastCase,omitempty"`
+	LastSaveDir string `json:"lastSaveDir,omitempty"`
+}
+
+func settingsPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "vrml-viewer", "settings.json")
+}
+
+func loadSettings() viewerSettings {
+	s := viewerSettings{AxesVisible: true} // default: axes on
+	data, err := os.ReadFile(settingsPath())
+	if err != nil {
+		return s
+	}
+	_ = json.Unmarshal(data, &s)
+	return s
+}
+
+func saveSettings(s viewerSettings) {
+	p := settingsPath()
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(p, data, 0o644)
+}
+
 // ────────────────────────── Viewer state ──────────────────────────
 
 // viewerState holds mutable state toggled by menu actions.
@@ -117,6 +153,7 @@ type viewerState struct {
 	baseDir      string
 	normalsNode  core.INode        // face-normals helper, if shown
 	reloadFn     func(path string) // callback to reload a file
+	lastSaveDir  string            // last directory used for export
 
 	// Bool demo state
 	currentCase  *boolCase     // selected case (nil = none)
@@ -128,6 +165,9 @@ type viewerState struct {
 	resultSolids []*base.Solid // result solids (for export)
 	resultNames  []string      // result operation names
 	resultSpan   float64       // offset for result positioning
+
+	// Wireframe: saved original materials keyed by mesh pointer
+	savedMaterials map[*graphic.Mesh][]material.IMaterial
 
 	// Thread-safe pending load (OpenGL must run on main thread)
 	pendingLoad chan string
@@ -147,13 +187,52 @@ func setupMenuBar(vs *viewerState) *gui.Menu {
 	return mb
 }
 
+func persistSettings(vs *viewerState) {
+	s := viewerSettings{
+		Wireframe:   vs.wireframe,
+		AxesVisible: vs.axesVisible,
+		LastSaveDir: vs.lastSaveDir,
+	}
+	if vs.currentCase != nil {
+		s.LastCase = vs.currentCase.name
+	}
+	saveSettings(s)
+}
+
+func updateWindowTitle(vs *viewerState) {
+	title := "VRML Viewer"
+	if vs.currentCase != nil {
+		title = "VRML Viewer — " + vs.currentCase.name
+	}
+	a := app.App()
+	if gw, ok := a.IWindow.(*window.GlfwWindow); ok {
+		gw.SetTitle(title)
+	}
+}
+
+func restoreLastCase(vs *viewerState) {
+	s := loadSettings()
+	vs.wireframe = s.Wireframe
+	vs.axesVisible = s.AxesVisible
+	vs.lastSaveDir = s.LastSaveDir
+	vs.axes.SetVisible(vs.axesVisible)
+	if s.LastCase != "" {
+		if bc, ok := boolCaseMap[s.LastCase]; ok {
+			selectBoolCase(vs, bc)
+		}
+	}
+	if vs.wireframe {
+		toggleWireframe(vs, true)
+	}
+}
+
 // ────────────────────────── File ──────────────────────────
 
 func buildFileMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
 	open := m.AddOption("Open WRL...")
-	open.SetShortcut(window.ModControl, window.KeyO)
+	open.SetShortcut(window.ModSuper, window.KeyO)
 	open.Subscribe(gui.OnClick, func(string, interface{}) {
 		go openFileDialog(vs)
 	})
@@ -161,7 +240,7 @@ func buildFileMenu(vs *viewerState) *gui.Menu {
 	m.AddSeparator()
 
 	exportWRL := m.AddOption("Export WRL...")
-	exportWRL.SetShortcut(window.ModControl|window.ModShift, window.KeyS)
+	exportWRL.SetShortcut(window.ModSuper|window.ModShift, window.KeyS)
 	exportWRL.Subscribe(gui.OnClick, func(string, interface{}) {
 		go exportScene(vs)
 	})
@@ -169,7 +248,7 @@ func buildFileMenu(vs *viewerState) *gui.Menu {
 	m.AddSeparator()
 
 	quit := m.AddOption("Quit")
-	quit.SetShortcut(window.ModControl, window.KeyQ)
+	quit.SetShortcut(window.ModSuper, window.KeyQ)
 	quit.Subscribe(gui.OnClick, func(string, interface{}) {
 		os.Exit(0)
 	})
@@ -196,8 +275,20 @@ func openFileDialog(vs *viewerState) {
 
 // exportScene uses osascript to pick a save path and serializes the current scene to VRML.
 func exportScene(vs *viewerState) {
-	out, err := exec.Command("osascript", "-e",
-		`POSIX path of (choose file name default name "scene.wrl" with prompt "Export WRL")`).Output()
+	defaultName := "scene.wrl"
+	if vs.currentCase != nil {
+		defaultName = vs.currentCase.name + ".wrl"
+	}
+	defaultDir := vs.lastSaveDir
+	if defaultDir == "" {
+		home, _ := os.UserHomeDir()
+		defaultDir = filepath.Join(home, "Desktop")
+	}
+
+	script := fmt.Sprintf(
+		`POSIX path of (choose file name default name "%s" default location POSIX file "%s" with prompt "Export WRL")`,
+		defaultName, defaultDir)
+	out, err := exec.Command("osascript", "-e", script).Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Export cancelled or failed: %v\n", err)
 		return
@@ -206,6 +297,9 @@ func exportScene(vs *viewerState) {
 	if path == "" {
 		return
 	}
+
+	vs.lastSaveDir = filepath.Dir(path)
+	persistSettings(vs)
 
 	if vs.currentCase != nil {
 		if err := exportBoolScene(vs, path); err != nil {
@@ -301,25 +395,27 @@ func buildViewMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
 	wire := m.AddOption("Toggle Wireframe")
-	wire.SetShortcut(window.ModControl, window.KeyW)
+	wire.SetShortcut(window.ModSuper, window.KeyW)
 	wire.Subscribe(gui.OnClick, func(string, interface{}) {
 		vs.wireframe = !vs.wireframe
-		toggleWireframe(vs.scene, vs.wireframe)
+		toggleWireframe(vs, vs.wireframe)
+		persistSettings(vs)
 		fmt.Fprintf(os.Stderr, "Wireframe: %v\n", vs.wireframe)
 	})
 
 	axesItem := m.AddOption("Toggle Axes")
-	axesItem.SetShortcut(window.ModControl, window.KeyA)
+	axesItem.SetShortcut(window.ModSuper, window.KeyA)
 	axesItem.Subscribe(gui.OnClick, func(string, interface{}) {
 		vs.axesVisible = !vs.axesVisible
 		vs.axes.SetVisible(vs.axesVisible)
+		persistSettings(vs)
 		fmt.Fprintf(os.Stderr, "Axes: %v\n", vs.axesVisible)
 	})
 
 	m.AddSeparator()
 
 	resetCam := m.AddOption("Reset Camera")
-	resetCam.SetShortcut(window.ModControl, window.KeyR)
+	resetCam.SetShortcut(window.ModSuper, window.KeyR)
 	resetCam.Subscribe(gui.OnClick, func(string, interface{}) {
 		resetCamera(vs)
 		fmt.Fprintf(os.Stderr, "Camera reset\n")
@@ -328,18 +424,54 @@ func buildViewMenu(vs *viewerState) *gui.Menu {
 	return m
 }
 
-// toggleWireframe recursively sets wireframe on all materials in the scene.
-func toggleWireframe(n core.INode, on bool) {
+// toggleWireframe swaps mesh materials between their originals and white
+// unlit wireframe. Saved originals are stored on vs.savedMaterials.
+func toggleWireframe(vs *viewerState, on bool) {
+	if vs.savedMaterials == nil {
+		vs.savedMaterials = make(map[*graphic.Mesh][]material.IMaterial)
+	}
+	if on {
+		applyWireframeRecursive(vs, vs.scene)
+	} else {
+		restoreMaterialsRecursive(vs, vs.scene)
+	}
+}
+
+func applyWireframeRecursive(vs *viewerState, n core.INode) {
 	if gr, ok := n.(*graphic.Mesh); ok {
-		for _, gm := range gr.Materials() {
-			if mat, ok := gm.IMaterial().(*material.Standard); ok {
-				mat.SetWireframe(on)
+		// Save originals if not already saved
+		if _, saved := vs.savedMaterials[gr]; !saved {
+			var orig []material.IMaterial
+			for _, gm := range gr.Materials() {
+				orig = append(orig, gm.IMaterial())
 			}
+			vs.savedMaterials[gr] = orig
+		}
+		// Replace with white unlit wireframe
+		gr.ClearMaterials()
+		wm := material.NewStandard(&math32.Color{R: 1, G: 1, B: 1})
+		wm.SetEmissiveColor(&math32.Color{R: 1, G: 1, B: 1})
+		wm.SetWireframe(true)
+		wm.SetSide(material.SideDouble)
+		gr.AddMaterial(wm, 0, 0)
+	}
+	for _, child := range n.GetNode().Children() {
+		applyWireframeRecursive(vs, child)
+	}
+}
+
+func restoreMaterialsRecursive(vs *viewerState, n core.INode) {
+	if gr, ok := n.(*graphic.Mesh); ok {
+		if orig, saved := vs.savedMaterials[gr]; saved {
+			gr.ClearMaterials()
+			for _, m := range orig {
+				gr.AddMaterial(m, 0, 0)
+			}
+			delete(vs.savedMaterials, gr)
 		}
 	}
-	node := n.GetNode()
-	for _, child := range node.Children() {
-		toggleWireframe(child, on)
+	for _, child := range n.GetNode().Children() {
+		restoreMaterialsRecursive(vs, child)
 	}
 }
 
@@ -360,12 +492,14 @@ func resetCamera(vs *viewerState) {
 func buildBoolMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
-	// Add the three failing test cases directly
+	// Add the test cases with Cmd+1, Cmd+2, etc.
 	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist", "sphere_vs_cube"}
-	for _, name := range caseOrder {
+	caseKeys := []window.Key{window.Key1, window.Key2, window.Key3, window.Key4}
+	for i, name := range caseOrder {
 		bc := boolCaseMap[name]
 		capturedCase := bc
 		opt := m.AddOption(name)
+		opt.SetShortcut(window.ModSuper, caseKeys[i])
 		opt.Subscribe(gui.OnClick, func(string, interface{}) {
 			selectBoolCase(vs, capturedCase)
 		})
@@ -374,19 +508,19 @@ func buildBoolMenu(vs *viewerState) *gui.Menu {
 	m.AddSeparator()
 
 	union := m.AddOption("Union (A ∪ B)")
-	union.SetShortcut(window.ModControl, window.KeyU)
+	union.SetShortcut(window.ModSuper, window.KeyU)
 	union.Subscribe(gui.OnClick, func(string, interface{}) {
 		runBoolOp(vs, base.BoolUnion, "Union")
 	})
 
 	inter := m.AddOption("Intersection (A ∩ B)")
-	inter.SetShortcut(window.ModControl, window.KeyI)
+	inter.SetShortcut(window.ModSuper, window.KeyI)
 	inter.Subscribe(gui.OnClick, func(string, interface{}) {
 		runBoolOp(vs, base.BoolIntersection, "Intersection")
 	})
 
 	diff := m.AddOption("Difference (A − B)")
-	diff.SetShortcut(window.ModControl, window.KeyD)
+	diff.SetShortcut(window.ModSuper, window.KeyD)
 	diff.Subscribe(gui.OnClick, func(string, interface{}) {
 		runBoolOp(vs, base.BoolDifference, "Difference")
 	})
@@ -455,6 +589,12 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 	statsA := solidStatsStr(vs.solidA)
 	statsB := solidStatsStr(vs.solidB)
 	fmt.Fprintf(os.Stderr, "Bool case '%s': A(%s), B(%s)\n", bc.name, statsA, statsB)
+
+	updateWindowTitle(vs)
+	persistSettings(vs)
+	if vs.wireframe {
+		toggleWireframe(vs, true)
+	}
 }
 
 // runBoolOp runs a boolean operation on the current A and B and displays the result.
@@ -513,6 +653,10 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	vs.resultNodes = append(vs.resultNodes, resultGroup)
 	vs.resultSolids = append(vs.resultSolids, result)
 	vs.resultNames = append(vs.resultNames, name)
+
+	if vs.wireframe {
+		applyWireframeRecursive(vs, resultGroup)
+	}
 
 	pos := resultGroup.Position()
 	fmt.Fprintf(os.Stderr, "Bool %s: result displayed at (%.1f, %.1f, %.1f)\n", name, pos.X, pos.Y, pos.Z)
@@ -637,19 +781,19 @@ func buildDebugMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
 	euler := m.AddOption("Show Euler Stats")
-	euler.SetShortcut(window.ModControl, window.KeyE)
+	euler.SetShortcut(window.ModSuper, window.KeyE)
 	euler.Subscribe(gui.OnClick, func(string, interface{}) {
 		showEulerStats(vs)
 	})
 
 	normals := m.AddOption("Toggle Face Normals")
-	normals.SetShortcut(window.ModControl, window.KeyN)
+	normals.SetShortcut(window.ModSuper, window.KeyN)
 	normals.Subscribe(gui.OnClick, func(string, interface{}) {
 		toggleNormals(vs)
 	})
 
 	halfedge := m.AddOption("Show Half-Edge Info")
-	halfedge.SetShortcut(window.ModControl, window.KeyH)
+	halfedge.SetShortcut(window.ModSuper, window.KeyH)
 	halfedge.Subscribe(gui.OnClick, func(string, interface{}) {
 		showHalfEdgeInfo(vs)
 	})
