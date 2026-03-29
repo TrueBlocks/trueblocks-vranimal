@@ -7,7 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/algorithms"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/boolop"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/export"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/primitives"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
@@ -19,26 +23,26 @@ var (
 
 type vizCase struct {
 	name  string
-	makeA func() *solid.Solid
-	makeB func() *solid.Solid
+	makeA func() *base.Solid
+	makeB func() *base.Solid
 }
 
-func setColor(s *solid.Solid, c vec.SFColor) {
-	s.ForEachFace(func(f *solid.Face) bool {
+func setColor(s *base.Solid, c vec.SFColor) {
+	s.ForEachFace(func(f *base.Face) bool {
 		f.SetColor(c)
 		return true
 	})
 }
 
-func doTranslate(s *solid.Solid, x, y, z float64) {
+func doTranslate(s *base.Solid, x, y, z float64) {
 	s.TransformGeometry(vec.TranslationMatrix(x, y, z))
 }
 
-func doScale(s *solid.Solid, sx, sy, sz float64) {
+func doScale(s *base.Solid, sx, sy, sz float64) {
 	s.TransformGeometry(vec.ScaleMatrix(sx, sy, sz))
 }
 
-func doRotateCenter(s *solid.Solid, degrees float64, axis vec.SFVec3f) {
+func doRotateCenter(s *base.Solid, degrees float64, axis vec.SFVec3f) {
 	mn, mx := s.Extents()
 	cx := (mn.X + mx.X) / 2
 	cy := (mn.Y + mx.Y) / 2
@@ -63,9 +67,9 @@ func makeHexVerts(radius float64) []vec.SFVec3f {
 	return verts
 }
 
-func makeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *solid.Solid {
-	s := solid.MakeLamina(verts, color)
-	s.TranslationalSweep(s.GetFirstFace(), dir)
+func makeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *base.Solid {
+	s := primitives.MakeLamina(verts, color)
+	algorithms.TranslationalSweep(s, s.GetFirstFace(), dir)
 	s.CalcPlaneEquations()
 	s.Renumber()
 	return s
@@ -81,9 +85,9 @@ func main() {
 	cases := []vizCase{
 		{
 			name:  "partial_penetration",
-			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(0.5, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(0.5, lightBlue)
 				doScale(s, 1, 1, 2)
 				doTranslate(s, 0.25, 0.25, -0.25)
 				return s
@@ -91,18 +95,18 @@ func main() {
 		},
 		{
 			name:  "fully_contained",
-			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(0.5, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(0.5, lightBlue)
 				doTranslate(s, 0.25, 0.25, 0.25)
 				return s
 			},
 		},
 		{
 			name:  "through",
-			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(0.5, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(0.5, lightBlue)
 				doScale(s, 1, 1, 4)
 				doTranslate(s, 0.25, 0.25, -0.15)
 				return s
@@ -110,18 +114,18 @@ func main() {
 		},
 		{
 			name:  "edge_on_edge",
-			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(1.0, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(1.0, lightBlue)
 				doTranslate(s, 0, -1, -1)
 				return s
 			},
 		},
 		{
 			name:  "rotated_elongated",
-			makeA: func() *solid.Solid { return solid.MakeCube(1.0, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(0.5, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(0.5, lightBlue)
 				doScale(s, 1, 1, 4)
 				doTranslate(s, -0.25, -0.25, -0.5)
 				doTranslate(s, 0.5, 0, -0.25)
@@ -132,10 +136,10 @@ func main() {
 		},
 		{
 			name: "hexagon_prism",
-			makeA: func() *solid.Solid {
+			makeA: func() *base.Solid {
 				return makeSweptLamina(makeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, yellow)
 			},
-			makeB: func() *solid.Solid {
+			makeB: func() *base.Solid {
 				s := makeSweptLamina(makeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, lightBlue)
 				doTranslate(s, 0.5, 0.3, -0.4)
 				return s
@@ -143,9 +147,9 @@ func main() {
 		},
 		{
 			name:  "sphere_vs_cube",
-			makeA: func() *solid.Solid { return solid.MakeSphere(1.0, 10, 10, yellow) },
-			makeB: func() *solid.Solid {
-				s := solid.MakeCube(1.0, lightBlue)
+			makeA: func() *base.Solid { return primitives.MakeSphere(1.0, 10, 10, yellow) },
+			makeB: func() *base.Solid {
+				s := primitives.MakeCube(1.0, lightBlue)
 				doTranslate(s, 0, 0, -1)
 				return s
 			},
@@ -156,9 +160,9 @@ func main() {
 		code int
 		name string
 	}{
-		{solid.BoolUnion, "union"},
-		{solid.BoolIntersection, "intersection"},
-		{solid.BoolDifference, "difference"},
+		{base.BoolUnion, "union"},
+		{base.BoolIntersection, "intersection"},
+		{base.BoolDifference, "difference"},
 	}
 
 	for _, c := range cases {
@@ -170,7 +174,7 @@ func main() {
 
 			opA := c.makeA()
 			opB := c.makeB()
-			result, ok := solid.BoolOp(opA, opB, op.code)
+			result, ok := boolop.BoolOp(opA, opB, op.code)
 
 			mnA, mxA := dispA.Extents()
 			mnB, mxB := dispB.Extents()
@@ -184,7 +188,7 @@ func main() {
 			leftX := -(span/2 + gap/2)
 			rightX := span/2 + gap/2
 
-			solids := []*solid.Solid{dispA, dispB}
+			solids := []*base.Solid{dispA, dispB}
 			translations := []vec.SFVec3f{
 				{X: leftX, Y: 0, Z: 0},
 				{X: leftX, Y: 0, Z: 0},
@@ -193,7 +197,7 @@ func main() {
 			status := "PASS"
 			prefix := "pass"
 			if ok && result != nil {
-				errs := result.VerifyDetailed()
+				errs := algorithms.VerifyDetailed(result)
 				if len(errs) > 0 {
 					status = "FAIL (invalid topology)"
 					prefix = "fail"
@@ -241,11 +245,11 @@ func main() {
 				w("# %s\n", labels[i])
 				w("Transform {\n  translation %g %g %g\n  children [\n", tx.X, tx.Y, tx.Z)
 				if i == 0 {
-					if err := s.ExportVRMLShape(f, "    "); err != nil {
+					if err := export.Shape(s, f, "    "); err != nil {
 						fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 					}
 				} else {
-					if err := s.ExportVRMLWireframe(f, "    ", wireColors[i]); err != nil {
+					if err := export.Wireframe(s, f, "    ", wireColors[i]); err != nil {
 						fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 					}
 				}
