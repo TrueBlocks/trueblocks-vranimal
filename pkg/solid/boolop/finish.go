@@ -72,7 +72,7 @@ func (br *BoolopRecord) Finish() {
 		}
 		br.Result.Cleanup()
 		for i := 0; i < nFacesA; i++ {
-			_ = euler.Lkfmrh(mirrorsA[i], mirrorsB[i])
+			_ = euler.Lkfmrh(mirrorsB[i], mirrorsA[i])
 			algorithms.LoopGlue(mirrorsA[i])
 		}
 	case base.BoolDifference:
@@ -87,7 +87,7 @@ func (br *BoolopRecord) Finish() {
 		br.Result.Merge(tmpSolid)
 		br.Result.Cleanup()
 		for i := 0; i < nFacesA; i++ {
-			_ = euler.Lkfmrh(br.FacesA[i], mirrorsB[i])
+			_ = euler.Lkfmrh(mirrorsB[i], br.FacesA[i])
 			algorithms.LoopGlue(br.FacesA[i])
 		}
 	}

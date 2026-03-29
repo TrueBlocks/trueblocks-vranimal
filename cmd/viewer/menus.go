@@ -74,6 +74,15 @@ var boolCaseMap = map[string]*boolCase{
 			return s
 		},
 	},
+	"sphere_vs_cube": {
+		name:  "sphere_vs_cube",
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid {
+			s := primitives.MakeSphere(0.5, 4, 8, lightBlue)
+			boolDoTranslate(s, -0.25, -0.25, -0.25)
+			return s
+		},
+	},
 }
 
 func boolDoTranslate(s *base.Solid, x, y, z float64) {
@@ -352,7 +361,7 @@ func buildBoolMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
 	// Add the three failing test cases directly
-	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist"}
+	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist", "sphere_vs_cube"}
 	for _, name := range caseOrder {
 		bc := boolCaseMap[name]
 		capturedCase := bc
