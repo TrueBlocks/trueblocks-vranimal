@@ -372,6 +372,7 @@ func TestLmfkrh(t *testing.T) {
 	}
 	if nf == nil {
 		t.Fatal("Lmfkrh returned nil face")
+		return
 	}
 	if s.NFaces() != facesBefore+1 {
 		t.Errorf("expected %d faces after Lmfkrh, got %d", facesBefore+1, s.NFaces())
