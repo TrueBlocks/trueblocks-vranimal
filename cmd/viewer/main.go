@@ -163,33 +163,28 @@ func main() {
 			}
 		}
 	}
-	if at.HasSensor {
-		// Subscribe to mouse events for sensor picking
-		a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
-			mev := ev.(*window.MouseEvent)
-			if mev.Button != window.MouseButtonLeft {
-				return
-			}
-			picker.SimTime = br.SimTime()
-			if picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerDown) {
-				fmt.Fprintf(os.Stderr, "Pick hit at (%.0f, %.0f)\n", mev.Xpos, mev.Ypos)
-			}
-		})
-		a.Subscribe(window.OnMouseUp, func(evname string, ev interface{}) {
-			mev := ev.(*window.MouseEvent)
-			if mev.Button != window.MouseButtonLeft {
-				return
-			}
-			picker.SimTime = br.SimTime()
-			picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerUp)
-		})
-		a.Subscribe(window.OnCursor, func(evname string, ev interface{}) {
-			cev := ev.(*window.CursorEvent)
-			picker.SimTime = br.SimTime()
-			picker.HandlePointer(float64(cev.Xpos), float64(cev.Ypos), traverser.PointerMove)
-		})
-		fmt.Fprintf(os.Stderr, "Mouse picking enabled for sensor interaction\n")
-	}
+	// Always subscribe to mouse events — bool demo meshes get TouchSensors dynamically.
+	a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
+		mev := ev.(*window.MouseEvent)
+		if mev.Button != window.MouseButtonLeft {
+			return
+		}
+		picker.SimTime = br.SimTime()
+		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerDown)
+	})
+	a.Subscribe(window.OnMouseUp, func(evname string, ev interface{}) {
+		mev := ev.(*window.MouseEvent)
+		if mev.Button != window.MouseButtonLeft {
+			return
+		}
+		picker.SimTime = br.SimTime()
+		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerUp)
+	})
+	a.Subscribe(window.OnCursor, func(evname string, ev interface{}) {
+		cev := ev.(*window.CursorEvent)
+		picker.SimTime = br.SimTime()
+		picker.HandlePointer(float64(cev.Xpos), float64(cev.Ypos), traverser.PointerMove)
+	})
 
 	// Add default lighting if no lights in the scene
 	headlight := nav == nil || nav.Headlight // default is true per VRML97
@@ -226,6 +221,8 @@ func main() {
 		vrmlNodes:   vrmlNodes,
 		wrlPath:     wrlPath,
 		baseDir:     baseDir,
+		browser:     br,
+		picker:      picker,
 		pendingLoad: make(chan string, 1),
 	}
 	vs.reloadFn = func(path string) { loadScene(vs, path) }
@@ -287,6 +284,9 @@ func main() {
 		br.Update(deltaTime)
 		nodeMap.CameraPos = camPos
 		nodeMap.UpdateDynamic()
+
+		// Sync pick-highlight colors from VRML Material to g3n meshes
+		syncPickColors(vs)
 
 		a.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
 		_ = rend.Render(scene, cam)

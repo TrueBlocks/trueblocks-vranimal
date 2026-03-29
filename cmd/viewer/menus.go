@@ -22,6 +22,7 @@ import (
 	"github.com/g3n/engine/util/helper"
 	"github.com/g3n/engine/window"
 
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/browser"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/node"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
@@ -30,6 +31,7 @@ import (
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/boolop"
 	solidExport "github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/export"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/primitives"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/traverser"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/writer"
 )
@@ -155,6 +157,10 @@ type viewerState struct {
 	reloadFn     func(path string) // callback to reload a file
 	lastSaveDir  string            // last directory used for export
 
+	// Browser and picker (shared with main for route/sensor integration)
+	browser *browser.Browser
+	picker  *traverser.Picker
+
 	// Bool demo state
 	currentCase  *boolCase     // selected case (nil = none)
 	solidA       *base.Solid   // current A solid
@@ -165,6 +171,13 @@ type viewerState struct {
 	resultSolids []*base.Solid // result solids (for export)
 	resultNames  []string      // result operation names
 	resultSpan   float64       // offset for result positioning
+
+	// Pick highlighting via TouchSensor + Route
+	touchSensorA *node.TouchSensor
+	touchSensorB *node.TouchSensor
+	vrmlMatA     *node.Material
+	vrmlMatB     *node.Material
+	pickRoutes   []*node.Route
 
 	// Wireframe: saved original materials keyed by mesh pointer
 	savedMaterials map[*graphic.Mesh][]material.IMaterial
@@ -475,6 +488,87 @@ func restoreMaterialsRecursive(vs *viewerState, n core.INode) {
 	}
 }
 
+// ────────────────────────── Pick highlighting ──────────────────────────
+
+// setupPickSensors creates VRML TouchSensors and Routes so that clicking a
+// bool-demo solid highlights it red while the mouse button is held.
+func setupPickSensors(vs *viewerState) {
+	if vs.browser == nil {
+		return
+	}
+
+	vs.touchSensorA = node.NewTouchSensor()
+	vs.touchSensorB = node.NewTouchSensor()
+	vs.vrmlMatA = &node.Material{DiffuseColor: yellow}
+	vs.vrmlMatB = &node.Material{DiffuseColor: lightBlue}
+
+	// Tag g3n parent nodes with VRML children so the Picker can find the sensors.
+	if vs.meshANode != nil {
+		vs.meshANode.SetUserData([]node.Node{vs.touchSensorA})
+	}
+	if vs.meshBNode != nil {
+		vs.meshBNode.SetUserData([]node.Node{vs.touchSensorB})
+	}
+
+	// Routes: TouchSensor.isActive → Material.isActive (highlight/restore).
+	rA := node.NewRoute(vs.touchSensorA, node.IsActiveStr, vs.vrmlMatA, node.IsActiveStr)
+	rB := node.NewRoute(vs.touchSensorB, node.IsActiveStr, vs.vrmlMatB, node.IsActiveStr)
+	vs.pickRoutes = []*node.Route{rA, rB}
+	vs.browser.Routes = append(vs.browser.Routes, rA, rB)
+}
+
+// clearPickSensors removes pick-related routes and sensors from the viewer.
+func clearPickSensors(vs *viewerState) {
+	if vs.browser != nil && len(vs.pickRoutes) > 0 {
+		rm := make(map[*node.Route]bool, len(vs.pickRoutes))
+		for _, r := range vs.pickRoutes {
+			rm[r] = true
+		}
+		kept := vs.browser.Routes[:0]
+		for _, r := range vs.browser.Routes {
+			if !rm[r] {
+				kept = append(kept, r)
+			}
+		}
+		vs.browser.Routes = kept
+	}
+	vs.pickRoutes = nil
+	vs.touchSensorA = nil
+	vs.touchSensorB = nil
+	vs.vrmlMatA = nil
+	vs.vrmlMatB = nil
+}
+
+// syncPickColors propagates VRML Material.DiffuseColor (set by routes) to
+// the g3n mesh materials so the highlight is visible in the renderer.
+func syncPickColors(vs *viewerState) {
+	syncPickMesh(vs.vrmlMatA, vs.meshANode, vs.wireframe)
+	syncPickMesh(vs.vrmlMatB, vs.meshBNode, vs.wireframe)
+}
+
+func syncPickMesh(vrmlMat *node.Material, meshNode *core.Node, wireframe bool) {
+	if vrmlMat == nil || meshNode == nil {
+		return
+	}
+	c := &math32.Color{
+		R: float32(vrmlMat.DiffuseColor.R),
+		G: float32(vrmlMat.DiffuseColor.G),
+		B: float32(vrmlMat.DiffuseColor.B),
+	}
+	for _, child := range meshNode.Children() {
+		if mesh, ok := child.(*graphic.Mesh); ok {
+			for _, gm := range mesh.Materials() {
+				if stdMat, ok := gm.IMaterial().(*material.Standard); ok {
+					stdMat.SetColor(c)
+					if wireframe {
+						stdMat.SetEmissiveColor(c)
+					}
+				}
+			}
+		}
+	}
+}
+
 // resetCamera moves camera to default position.
 func resetCamera(vs *viewerState) {
 	vp := converter.GetViewpoint(vs.vrmlNodes)
@@ -571,9 +665,26 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 	vs.resultSolids = nil
 	vs.resultNames = nil
 
+	// Remove old pick routes and sensors
+	clearPickSensors(vs)
+
 	// Add meshes for A (yellow) and B (blue)
 	meshA := solidToMesh(vs.solidA, &math32.Color{R: 1, G: 0.9, B: 0.2})
 	meshB := solidToMesh(vs.solidB, &math32.Color{R: 0.4, G: 0.6, B: 1.0})
+
+	if meshA != nil {
+		vs.meshANode = core.NewNode()
+		vs.meshANode.Add(meshA)
+		vs.scene.Add(vs.meshANode)
+	}
+	if meshB != nil {
+		vs.meshBNode = core.NewNode()
+		vs.meshBNode.Add(meshB)
+		vs.scene.Add(vs.meshBNode)
+	}
+
+	// Set up TouchSensors and Routes for pick-highlighting
+	setupPickSensors(vs)
 
 	if meshA != nil {
 		vs.meshANode = core.NewNode()
@@ -771,6 +882,7 @@ func clearGeometry(vs *viewerState) {
 	vs.solidB = nil
 	vs.normalsNode = nil
 	vs.normalsShown = false
+	clearPickSensors(vs)
 
 	fmt.Fprintf(os.Stderr, "Cleared %d geometry nodes from scene\n", len(toRemove))
 }
