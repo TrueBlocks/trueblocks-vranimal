@@ -26,28 +26,11 @@ import (
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/algorithms"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/boolop"
+	solidExport "github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/export"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/primitives"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/writer"
 )
-
-// findBoolDemoDir locates the examples/bool_demos directory by trying
-// several candidate paths (CWD-relative, parent dir, relative to loaded file).
-func findBoolDemoDir(vs *viewerState) string {
-	candidates := []string{
-		"examples/bool_demos",
-		"trueblocks-vranimal/examples/bool_demos",
-	}
-	// Also try relative to the loaded WRL file's directory
-	if vs.baseDir != "" {
-		candidates = append(candidates, filepath.Join(vs.baseDir, "..", "..", "examples", "bool_demos"))
-	}
-	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && info.IsDir() {
-			return c
-		}
-	}
-	return ""
-}
 
 // ────────────────────────── Bool case definitions ──────────────────────────
 
@@ -63,74 +46,31 @@ type boolCase struct {
 }
 
 var boolCaseMap = map[string]*boolCase{
-	"partial_penetration": {
-		name:  "partial_penetration",
-		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
-		makeB: func() *base.Solid {
-			s := primitives.MakeCube(0.5, lightBlue)
-			boolDoScale(s, 1, 1, 2)
-			boolDoTranslate(s, 0.25, 0.25, -0.25)
-			return s
-		},
-	},
-	"fully_contained": {
-		name:  "fully_contained",
-		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
-		makeB: func() *base.Solid {
-			s := primitives.MakeCube(0.5, lightBlue)
-			boolDoTranslate(s, 0.25, 0.25, 0.25)
-			return s
-		},
-	},
-	"through": {
-		name:  "through",
-		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
-		makeB: func() *base.Solid {
-			s := primitives.MakeCube(0.5, lightBlue)
-			boolDoScale(s, 1, 1, 4)
-			boolDoTranslate(s, 0.25, 0.25, -0.15)
-			return s
-		},
-	},
-	"edge_on_edge": {
-		name:  "edge_on_edge",
+	"same_size_partial_overlap": {
+		name:  "same_size_partial_overlap",
 		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
 		makeB: func() *base.Solid {
 			s := primitives.MakeCube(1.0, lightBlue)
-			boolDoTranslate(s, 0, -1, -1)
+			boolDoTranslate(s, 0.5, 0.5, 0)
 			return s
 		},
 	},
-	"rotated_elongated": {
-		name:  "rotated_elongated",
+	"same_size_edge_on_edge": {
+		name:  "same_size_edge_on_edge",
 		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
 		makeB: func() *base.Solid {
-			s := primitives.MakeCube(0.5, lightBlue)
-			boolDoScale(s, 1, 1, 4)
-			boolDoTranslate(s, -0.25, -0.25, -0.5)
-			boolDoTranslate(s, 0.5, 0, -0.25)
-			boolDoRotateCenter(s, 55.0, vec.XAxis)
-			boolDoTranslate(s, 0, -0.07, 0)
+			s := primitives.MakeCube(1.0, lightBlue)
+			boolDoTranslate(s, 1.0, 1.0, 0)
 			return s
 		},
 	},
-	"hexagon_prism": {
-		name: "hexagon_prism",
-		makeA: func() *base.Solid {
-			return boolMakeSweptLamina(boolMakeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, yellow)
-		},
-		makeB: func() *base.Solid {
-			s := boolMakeSweptLamina(boolMakeHexVerts(0.8), vec.SFVec3f{X: 0, Y: 0, Z: -1.5}, lightBlue)
-			boolDoTranslate(s, 0.5, 0.3, -0.4)
-			return s
-		},
-	},
-	"sphere_vs_cube": {
-		name:  "sphere_vs_cube",
-		makeA: func() *base.Solid { return primitives.MakeSphere(1.0, 10, 10, yellow) },
+	"same_size_slight_twist": {
+		name:  "same_size_slight_twist",
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
 		makeB: func() *base.Solid {
 			s := primitives.MakeCube(1.0, lightBlue)
-			boolDoTranslate(s, 0, 0, -1)
+			boolDoRotateCenter(s, 15, vec.ZAxis)
+			boolDoTranslate(s, 0.3, 0.3, 0)
 			return s
 		},
 	},
@@ -138,10 +78,6 @@ var boolCaseMap = map[string]*boolCase{
 
 func boolDoTranslate(s *base.Solid, x, y, z float64) {
 	s.TransformGeometry(vec.TranslationMatrix(x, y, z))
-}
-
-func boolDoScale(s *base.Solid, sx, sy, sz float64) {
-	s.TransformGeometry(vec.ScaleMatrix(sx, sy, sz))
 }
 
 func boolDoRotateCenter(s *base.Solid, degrees float64, axis vec.SFVec3f) {
@@ -154,53 +90,6 @@ func boolDoRotateCenter(s *base.Solid, degrees float64, axis vec.SFVec3f) {
 	rot := vec.SFRotation{X: axis.X, Y: axis.Y, Z: axis.Z, W: radians}
 	s.TransformGeometry(vec.RotationMatrix(rot))
 	boolDoTranslate(s, cx, cy, cz)
-}
-
-func boolMakeHexVerts(radius float64) []vec.SFVec3f {
-	verts := make([]vec.SFVec3f, 6)
-	for i := 0; i < 6; i++ {
-		angle := float64(i) * math.Pi / 3.0
-		verts[i] = vec.SFVec3f{
-			X: radius * math.Cos(angle),
-			Y: radius * math.Sin(angle),
-			Z: 0,
-		}
-	}
-	return verts
-}
-
-func boolMakeSweptLamina(verts []vec.SFVec3f, dir vec.SFVec3f, color vec.SFColor) *base.Solid {
-	s := primitives.MakeLamina(verts, color)
-	algorithms.TranslationalSweep(s, s.GetFirstFace(), dir)
-	s.CalcPlaneEquations()
-	s.Renumber()
-	return s
-}
-
-// parseBoolFilename extracts case name and operation from a pass/fail filename.
-// e.g. "pass_partial_penetration_union" → ("partial_penetration", solid.BoolUnion)
-func parseBoolFilename(stem string) (caseName string, op int, ok bool) {
-	// Strip pass_ or fail_ prefix
-	s := stem
-	if strings.HasPrefix(s, "pass_") {
-		s = s[5:]
-	} else if strings.HasPrefix(s, "fail_") {
-		s = s[5:]
-	} else {
-		return "", 0, false
-	}
-
-	// The operation is the last _word
-	if strings.HasSuffix(s, "_union") {
-		return s[:len(s)-6], base.BoolUnion, true
-	}
-	if strings.HasSuffix(s, "_intersection") {
-		return s[:len(s)-13], base.BoolIntersection, true
-	}
-	if strings.HasSuffix(s, "_difference") {
-		return s[:len(s)-11], base.BoolDifference, true
-	}
-	return "", 0, false
 }
 
 // ────────────────────────── Viewer state ──────────────────────────
@@ -221,13 +110,15 @@ type viewerState struct {
 	reloadFn     func(path string) // callback to reload a file
 
 	// Bool demo state
-	currentCase *boolCase    // selected case (nil = none)
-	solidA      *base.Solid  // current A solid
-	solidB      *base.Solid  // current B solid
-	meshANode   *core.Node   // g3n node for A mesh
-	meshBNode   *core.Node   // g3n node for B mesh
-	resultNodes []*core.Node // g3n nodes for bool results
-	resultSpan  float64      // offset for result positioning
+	currentCase  *boolCase     // selected case (nil = none)
+	solidA       *base.Solid   // current A solid
+	solidB       *base.Solid   // current B solid
+	meshANode    *core.Node    // g3n node for A mesh
+	meshBNode    *core.Node    // g3n node for B mesh
+	resultNodes  []*core.Node  // g3n nodes for bool results
+	resultSolids []*base.Solid // result solids (for export)
+	resultNames  []string      // result operation names
+	resultSpan   float64       // offset for result positioning
 
 	// Thread-safe pending load (OpenGL must run on main thread)
 	pendingLoad chan string
@@ -294,7 +185,7 @@ func openFileDialog(vs *viewerState) {
 	vs.pendingLoad <- path
 }
 
-// exportScene uses osascript to pick a save path and writes the current file.
+// exportScene uses osascript to pick a save path and serializes the current scene to VRML.
 func exportScene(vs *viewerState) {
 	out, err := exec.Command("osascript", "-e",
 		`POSIX path of (choose file name default name "scene.wrl" with prompt "Export WRL")`).Output()
@@ -306,18 +197,93 @@ func exportScene(vs *viewerState) {
 	if path == "" {
 		return
 	}
-	// Copy current file to chosen path
-	src := vs.wrlPath
-	data, err := os.ReadFile(filepath.Clean(src))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Export read error: %v\n", err)
-		return
-	}
-	if err := os.WriteFile(filepath.Clean(path), data, 0600); err != nil {
-		fmt.Fprintf(os.Stderr, "Export write error: %v\n", err)
+
+	if vs.currentCase != nil {
+		if err := exportBoolScene(vs, path); err != nil {
+			fmt.Fprintf(os.Stderr, "Export error: %v\n", err)
+			return
+		}
+	} else if len(vs.vrmlNodes) > 0 {
+		if err := exportVRMLScene(vs, path); err != nil {
+			fmt.Fprintf(os.Stderr, "Export error: %v\n", err)
+			return
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Export: nothing to export\n")
 		return
 	}
 	fmt.Fprintf(os.Stderr, "Exported to: %s\n", path)
+}
+
+// exportBoolScene writes the bool demo solids (A, B, result) to a VRML file.
+func exportBoolScene(vs *viewerState, path string) (retErr error) {
+	f, err := os.Create(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cErr := f.Close(); cErr != nil && retErr == nil {
+			retErr = cErr
+		}
+	}()
+
+	if _, err := fmt.Fprintln(f, "#VRML V2.0 utf8"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(f, "# Bool case: %s\n", vs.currentCase.name); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f, `NavigationInfo { type "EXAMINE" }`); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f, `Viewpoint { position 0 0 6 description "Front" }`); err != nil {
+		return err
+	}
+
+	if vs.solidA != nil {
+		if _, err := fmt.Fprintln(f, "\n# Input A"); err != nil {
+			return err
+		}
+		if err := solidExport.Shape(vs.solidA, f, ""); err != nil {
+			return err
+		}
+	}
+	if vs.solidB != nil {
+		if _, err := fmt.Fprintln(f, "\n# Input B"); err != nil {
+			return err
+		}
+		if err := solidExport.Wireframe(vs.solidB, f, "", lightBlue); err != nil {
+			return err
+		}
+	}
+	for i, rs := range vs.resultSolids {
+		name := "Result"
+		if i < len(vs.resultNames) {
+			name = vs.resultNames[i]
+		}
+		if _, err := fmt.Fprintf(f, "\n# %s\n", name); err != nil {
+			return err
+		}
+		if err := solidExport.Shape(rs, f, ""); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// exportVRMLScene writes the current VRML node tree to a file.
+func exportVRMLScene(vs *viewerState, path string) (retErr error) {
+	f, err := os.Create(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cErr := f.Close(); cErr != nil && retErr == nil {
+			retErr = cErr
+		}
+	}()
+	writer.New(f).WriteScene(vs.vrmlNodes)
+	return nil
 }
 
 // ────────────────────────── View ──────────────────────────
@@ -385,61 +351,16 @@ func resetCamera(vs *viewerState) {
 func buildBoolMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
-	demoDir := findBoolDemoDir(vs)
-	if demoDir == "" {
-		fmt.Fprintf(os.Stderr, "Bool menu: cannot find examples/bool_demos directory\n")
-		m.AddOption("(no bool demos found)")
-		return m
+	// Add the three failing test cases directly
+	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist"}
+	for _, name := range caseOrder {
+		bc := boolCaseMap[name]
+		capturedCase := bc
+		opt := m.AddOption(name)
+		opt.Subscribe(gui.OnClick, func(string, interface{}) {
+			selectBoolCase(vs, capturedCase)
+		})
 	}
-
-	// Scan bool_demos directory for pass/fail WRL files
-	entries, err := os.ReadDir(demoDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Bool menu: cannot read %s: %v\n", demoDir, err)
-		return m
-	}
-
-	var passFiles, failFiles []string
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".wrl") {
-			continue
-		}
-		if strings.HasPrefix(name, "pass_") {
-			passFiles = append(passFiles, name)
-		} else if strings.HasPrefix(name, "fail_") {
-			failFiles = append(failFiles, name)
-		}
-	}
-
-	fmt.Fprintf(os.Stderr, "Bool menu: %d pass + %d fail files from %s\n", len(passFiles), len(failFiles), demoDir)
-
-	// Each pass/fail file becomes a menu item that selects A+B and runs the operation
-	addBoolFileItems := func(files []string) {
-		for _, name := range files {
-			stem := strings.TrimSuffix(name, ".wrl")
-			caseName, _, ok := parseBoolFilename(stem)
-			if !ok {
-				continue
-			}
-			bc := boolCaseMap[caseName]
-			if bc == nil {
-				fmt.Fprintf(os.Stderr, "Bool menu: unknown case '%s' from file %s\n", caseName, name)
-				continue
-			}
-			capturedCase := bc
-			opt := m.AddOption(stem)
-			opt.Subscribe(gui.OnClick, func(string, interface{}) {
-				selectBoolCase(vs, capturedCase)
-			})
-		}
-	}
-
-	addBoolFileItems(passFiles)
-	if len(passFiles) > 0 && len(failFiles) > 0 {
-		m.AddSeparator()
-	}
-	addBoolFileItems(failFiles)
 
 	m.AddSeparator()
 
@@ -504,6 +425,8 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 		vs.scene.Remove(rn)
 	}
 	vs.resultNodes = nil
+	vs.resultSolids = nil
+	vs.resultNames = nil
 
 	// Add meshes for A (yellow) and B (blue)
 	meshA := solidToMesh(vs.solidA, &math32.Color{R: 1, G: 0.9, B: 0.2})
@@ -579,6 +502,8 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	resultGroup.Add(mesh)
 	vs.scene.Add(resultGroup)
 	vs.resultNodes = append(vs.resultNodes, resultGroup)
+	vs.resultSolids = append(vs.resultSolids, result)
+	vs.resultNames = append(vs.resultNames, name)
 
 	pos := resultGroup.Position()
 	fmt.Fprintf(os.Stderr, "Bool %s: result displayed at (%.1f, %.1f, %.1f)\n", name, pos.X, pos.Y, pos.Z)

@@ -10,8 +10,15 @@ func (br *BoolopRecord) Finish() {
 	nFacesA := len(br.FacesA)
 	nFacesB := len(br.FacesB)
 	if nFacesA == 0 {
-		br.A.Merge(br.B)
-		br.Result = br.A
+		switch br.Op {
+		case base.BoolUnion:
+			br.A.Merge(br.B)
+			br.Result = br.A
+		case base.BoolIntersection:
+			br.Result = nil
+		case base.BoolDifference:
+			br.Result = br.A
+		}
 		return
 	}
 	mirrorsA := make([]*base.Face, nFacesA)
@@ -33,7 +40,11 @@ func (br *BoolopRecord) Finish() {
 		if sl != nil {
 			mirrorsB[i], _ = euler.Lmfkrh(sl)
 		}
-		if br.NoVV && br.Op != base.BoolUnion {
+		// When there are no vertex-vertex hits, the face/mirror assignment
+		// from Connect is inverted. For Union this only applies when the
+		// input was perturbed (degenerate case); non-perturbed Union with
+		// asymmetric VF (e.g. B passes through A) is already correct.
+		if br.NoVV && (br.Op != base.BoolUnion || br.Perturbed) {
 			br.FacesA[i], mirrorsA[i] = mirrorsA[i], br.FacesA[i]
 			br.FacesB[i], mirrorsB[i] = mirrorsB[i], br.FacesB[i]
 		}

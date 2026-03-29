@@ -587,12 +587,12 @@ func (cr *vvClassifyRecord) findNextCrossing() (aHead, aTail, bHead, bTail *base
 		bHead = cr.nhB[s.indexB].he
 		aIs180 := aHead.Is180()
 		bIs180 := bHead.Is180()
-		if aIs180 {
+		if aIs180 && !bIs180 {
 			aTail = aHead.GetMate().Next
 		} else {
 			aTail = aHead
 		}
-		if bIs180 {
+		if bIs180 && !aIs180 {
 			bTail = bHead.GetMate().Next
 		} else {
 			bTail = bHead

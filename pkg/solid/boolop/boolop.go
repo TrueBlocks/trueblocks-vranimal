@@ -18,19 +18,20 @@ type VertFaceRecord struct {
 }
 
 type BoolopRecord struct {
-	A      *base.Solid
-	B      *base.Solid
-	Op     int
-	Result *base.Solid
-	VertsV []VertVertRecord
-	VertsA []VertFaceRecord
-	VertsB []VertFaceRecord
-	EdgesA []*base.Edge
-	EdgesB []*base.Edge
-	FacesA []*base.Face
-	FacesB []*base.Face
-	NoVV   bool
-	Quit   bool
+	A         *base.Solid
+	B         *base.Solid
+	Op        int
+	Result    *base.Solid
+	VertsV    []VertVertRecord
+	VertsA    []VertFaceRecord
+	VertsB    []VertFaceRecord
+	EdgesA    []*base.Edge
+	EdgesB    []*base.Edge
+	FacesA    []*base.Face
+	FacesB    []*base.Face
+	NoVV      bool
+	Quit      bool
+	Perturbed bool // input was perturbed to resolve degeneracy
 }
 
 func NewBoolopRecord() *BoolopRecord {
@@ -51,6 +52,7 @@ func (br *BoolopRecord) Reset(a, b *base.Solid, op int) {
 	br.FacesB = br.FacesB[:0]
 	br.NoVV = true
 	br.Quit = false
+	br.Perturbed = false
 }
 
 func (br *BoolopRecord) AddVertFace(v *base.Vertex, f *base.Face, bVsA bool) {
@@ -274,9 +276,52 @@ func (br *BoolopRecord) Complete() {
 	}
 }
 
+// IsDegenerate checks whether two solids have edges lying exactly on the
+// other solid's face planes — the configuration that causes dual-Is180
+// null-edge degeneracies in the boolean pipeline. This is a read-only
+// check that does not modify either solid.
+func IsDegenerate(a, b *base.Solid) bool {
+	a.CalcPlaneEquations()
+	b.CalcPlaneEquations()
+	// Check edges of A against faces of B
+	for e := a.Edges; e != nil; e = e.Next {
+		v1 := e.He1.Vertex
+		v2 := e.He2.Vertex
+		for f := b.Faces; f != nil; f = f.Next {
+			d1 := f.GetDistance(v1.Loc)
+			d2 := f.GetDistance(v2.Loc)
+			if base.FloatCompare(d1) == 0 && base.FloatCompare(d2) == 0 {
+				return true
+			}
+		}
+	}
+	// Check edges of B against faces of A
+	for e := b.Edges; e != nil; e = e.Next {
+		v1 := e.He1.Vertex
+		v2 := e.He2.Vertex
+		for f := a.Faces; f != nil; f = f.Next {
+			d1 := f.GetDistance(v1.Loc)
+			d2 := f.GetDistance(v2.Loc)
+			if base.FloatCompare(d1) == 0 && base.FloatCompare(d2) == 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func BoolOp(a, b *base.Solid, op int) (*base.Solid, bool) {
+	perturb := IsDegenerate(a, b)
+	return boolOpCore(a, b, op, perturb)
+}
+
+func boolOpCore(a, b *base.Solid, op int, perturb bool) (*base.Solid, bool) {
 	workA := a.Copy()
 	workB := b.Copy()
+	if perturb {
+		const eps = 1e-4 // > BigEps (1e-5) to escape FloatCompare tolerance
+		workB.TransformGeometry(vec.TranslationMatrix(eps, eps, eps))
+	}
 	workA.CalcPlaneEquations()
 	workB.CalcPlaneEquations()
 	workA.SetFaceMarks(base.UNKNOWN)
@@ -285,6 +330,7 @@ func BoolOp(a, b *base.Solid, op int) (*base.Solid, bool) {
 	workB.SetVertexMarks(base.UNKNOWN)
 	br := NewBoolopRecord()
 	br.Reset(workA, workB, op)
+	br.Perturbed = perturb
 	br.Generate()
 	if br.Quit {
 		return nil, false
@@ -309,6 +355,26 @@ func BoolOp(a, b *base.Solid, op int) (*base.Solid, bool) {
 	}
 	br.Complete()
 	return br.Result, br.Result != nil
+}
+
+func countLoopVerts(f *base.Face) int {
+	if f.NLoops() == 0 || f.LoopOut == nil {
+		return 0
+	}
+	he := f.LoopOut.GetFirstHe()
+	if he == nil {
+		return 0
+	}
+	cnt := 0
+	start := he
+	for {
+		cnt++
+		he = he.Next
+		if he == start {
+			break
+		}
+	}
+	return cnt
 }
 
 func Union(a, b *base.Solid) (*base.Solid, bool) {

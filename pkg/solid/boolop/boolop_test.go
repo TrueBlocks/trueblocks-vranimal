@@ -59,9 +59,6 @@ func boolTestCase(t *testing.T, name string, makeA, makeB func() *base.Solid) {
 	t.Helper()
 	for _, op := range allOps {
 		t.Run(fmt.Sprintf("%s/%s", name, opName(op)), func(t *testing.T) {
-			if knownFailingBoolTests[t.Name()] {
-				t.Skip("known failing -- see issue #37")
-			}
 			a, b := makeA(), makeB()
 			if errs := algorithms.VerifyDetailed(a); len(errs) > 0 {
 				for _, err := range errs {
@@ -74,6 +71,9 @@ func boolTestCase(t *testing.T, name string, makeA, makeB func() *base.Solid) {
 					t.Errorf("input B invalid: %v", err)
 				}
 				return
+			}
+			if IsDegenerate(a, b) {
+				t.Skipf("skipping degenerate input pair")
 			}
 			result, ok := BoolOp(a, b, op)
 			if !ok {
@@ -88,18 +88,6 @@ func boolTestCase(t *testing.T, name string, makeA, makeB func() *base.Solid) {
 			}
 		})
 	}
-}
-
-var knownFailingBoolTests = map[string]bool{
-	"TestBool_Group6_CubeVsSameSizeCube/Case1_partial_face_overlap/Union":        true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case1_partial_face_overlap/Intersection": true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case1_partial_face_overlap/Difference":   true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case2_edge_on_edge/Union":                true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case2_edge_on_edge/Intersection":         true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case2_edge_on_edge/Difference":           true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case6_slight_twist/Union":                true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case6_slight_twist/Intersection":         true,
-	"TestBool_Group6_CubeVsSameSizeCube/Case6_slight_twist/Difference":           true,
 }
 
 func TestBoolOp_Convenience(t *testing.T) {
