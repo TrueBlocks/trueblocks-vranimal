@@ -10,7 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/algorithms"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/base"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/euler"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/export"
+	"github.com/TrueBlocks/trueblocks-vranimal/pkg/solid/split"
 	"github.com/TrueBlocks/trueblocks-vranimal/pkg/vec"
 )
 
@@ -18,18 +22,18 @@ func banner(title string) {
 	fmt.Printf("\n%s\n%s\n", title, strings.Repeat("-", len(title)))
 }
 
-func dumpStats(label string, s *solid.Solid) {
+func dumpStats(label string, s *base.Solid) {
 	f, e, v := s.Stats()
 	fmt.Printf("  %-22s faces=%d  edges=%d  verts=%d\n", label, f, e, v)
 }
 
-func dumpExtents(s *solid.Solid) {
+func dumpExtents(s *base.Solid) {
 	mn, mx := s.Extents()
 	fmt.Printf("  extents  min=(%.2f, %.2f, %.2f)  max=(%.2f, %.2f, %.2f)\n",
 		mn.X, mn.Y, mn.Z, mx.X, mx.Y, mx.Z)
 }
 
-func makeCube() *solid.Solid {
+func makeCube() *base.Solid {
 	positions := []vec.SFVec3f{
 		{X: -1, Y: 1, Z: 1},
 		{X: 1, Y: 1, Z: 1},
@@ -38,17 +42,17 @@ func makeCube() *solid.Solid {
 	}
 	indices := []int64{0, 1, 2, 3, -1}
 	color := vec.SFColor{R: 0.8, G: 0.2, B: 0.2, A: 1}
-	s := solid.BuildFromIndexSet(positions, indices, color)
-	if s == nil {
+	s, err := euler.BuildFromIndexSet(positions, indices, color)
+	if err != nil || s == nil {
 		return nil
 	}
-	s.TranslationalSweep(s.Faces, vec.SFVec3f{X: 0, Y: 0, Z: -2})
+	algorithms.TranslationalSweep(s, s.Faces, vec.SFVec3f{X: 0, Y: 0, Z: -2})
 	s.CalcPlaneEquations()
 	s.Renumber()
 	return s
 }
 
-func makeTrianglePrism() *solid.Solid {
+func makeTrianglePrism() *base.Solid {
 	positions := []vec.SFVec3f{
 		{X: 0, Y: 1, Z: 1},
 		{X: 1, Y: -1, Z: 1},
@@ -56,11 +60,11 @@ func makeTrianglePrism() *solid.Solid {
 	}
 	indices := []int64{0, 1, 2, -1}
 	color := vec.SFColor{R: 0.2, G: 0.6, B: 0.8, A: 1}
-	s := solid.BuildFromIndexSet(positions, indices, color)
-	if s == nil {
+	s, err := euler.BuildFromIndexSet(positions, indices, color)
+	if err != nil || s == nil {
 		return nil
 	}
-	s.TranslationalSweep(s.Faces, vec.SFVec3f{X: 0, Y: 0, Z: -2})
+	algorithms.TranslationalSweep(s, s.Faces, vec.SFVec3f{X: 0, Y: 0, Z: -2})
 	s.CalcPlaneEquations()
 	s.Renumber()
 	return s
@@ -78,7 +82,7 @@ func main() {
 	fmt.Printf("  volume = %.2f\n", cube.Volume())
 
 	banner("2. Structural verification (VerifyDetailed)")
-	if errs := cube.VerifyDetailed(); len(errs) > 0 {
+	if errs := algorithms.VerifyDetailed(cube); len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Printf("  error: %v\n", e)
 		}
@@ -88,9 +92,9 @@ func main() {
 
 	banner("3. Vertex neighborhood queries")
 	v0 := cube.Verts
-	faces := v0.VertexFaces()
-	neighbors := v0.VertexNeighbors()
-	edges := v0.VertexEdges()
+	faces := algorithms.VertexFaces(v0)
+	neighbors := algorithms.VertexNeighbors(v0)
+	edges := algorithms.VertexEdges(v0)
 	fmt.Printf("  vertex %d at %v\n", v0.Index, v0.Loc)
 	fmt.Printf("    adjacent faces:    %d\n", len(faces))
 	fmt.Printf("    adjacent edges:    %d\n", len(edges))
@@ -98,16 +102,16 @@ func main() {
 
 	banner("4. Face neighborhood queries")
 	f0 := cube.Faces
-	faceNeighbors := f0.FaceNeighbors()
+	faceNeighbors := algorithms.FaceNeighbors(f0)
 	fmt.Printf("  face %d  normal=(%.2f, %.2f, %.2f)\n",
 		f0.Index, f0.Normal.X, f0.Normal.Y, f0.Normal.Z)
 	fmt.Printf("    neighbor faces: %d\n", len(faceNeighbors))
 
 	banner("5. Coplanarity and collinearity checks")
-	_, _, hasCop := cube.Faces.HasCoplanarNeighbor()
+	_, _, hasCop := algorithms.HasCoplanarNeighbor(cube.Faces)
 	fmt.Printf("  first face has coplanar neighbor? %v\n", hasCop)
-	fmt.Printf("  solid has colinear verts?         %v\n", cube.HasColinearVerts())
-	fmt.Printf("  degenerate faces?                 %v\n", cube.HasDegenerateFaces() != nil)
+	fmt.Printf("  solid has colinear verts?         %v\n", algorithms.SolidHasColinearVerts(cube))
+	fmt.Printf("  degenerate faces?                 %v\n", algorithms.HasDegenerateFaces(cube) != nil)
 
 	banner("6. Copy + translate")
 	shifted := cube.Copy()
@@ -126,7 +130,7 @@ func main() {
 
 	banner("8. Triangulate a cube copy")
 	triCube := cube.Copy()
-	triCube.Triangulate()
+	algorithms.Triangulate(triCube)
 	triCube.Renumber()
 	dumpStats("triangulated cube:", triCube)
 
@@ -142,8 +146,8 @@ func main() {
 
 	banner("10. Split cube along z=0 plane")
 	splitCube := makeCube()
-	zPlane := solid.Plane{Normal: vec.SFVec3f{X: 0, Y: 0, Z: 1}, D: 0}
-	above, below, ok := splitCube.Split(zPlane)
+	zPlane := base.Plane{Normal: vec.SFVec3f{X: 0, Y: 0, Z: 1}, D: 0}
+	above, below, ok := split.Split(splitCube, zPlane)
 	if !ok {
 		fmt.Println("  split produced no intersection (unexpected)")
 	} else {
@@ -159,8 +163,8 @@ func main() {
 
 	banner("11. Split cube along x=0 plane")
 	splitCube2 := makeCube()
-	xPlane := solid.Plane{Normal: vec.SFVec3f{X: 1, Y: 0, Z: 0}, D: 0}
-	left, right, ok := splitCube2.Split(xPlane)
+	xPlane := base.Plane{Normal: vec.SFVec3f{X: 1, Y: 0, Z: 0}, D: 0}
+	left, right, ok := split.Split(splitCube2, xPlane)
 	if !ok {
 		fmt.Println("  split produced no intersection (unexpected)")
 	} else {
@@ -172,7 +176,7 @@ func main() {
 
 	banner("12. Split prism along z=0 plane")
 	splitPrism := makeTrianglePrism()
-	above2, below2, ok := splitPrism.Split(zPlane)
+	above2, below2, ok := split.Split(splitPrism, zPlane)
 	if !ok {
 		fmt.Println("  split produced no intersection (unexpected)")
 	} else {
@@ -184,13 +188,13 @@ func main() {
 
 	banner("13. Split cube with non-intersecting plane")
 	noHitCube := makeCube()
-	farPlane := solid.Plane{Normal: vec.SFVec3f{X: 0, Y: 0, Z: 1}, D: -10}
-	_, _, ok = noHitCube.Split(farPlane)
+	farPlane := base.Plane{Normal: vec.SFVec3f{X: 0, Y: 0, Z: 1}, D: -10}
+	_, _, ok = split.Split(noHitCube, farPlane)
 	fmt.Printf("  plane at z=10 intersects cube? %v (expected false)\n", ok)
 
 	banner("14. Verify split results")
 	if above != nil {
-		if errs := above.VerifyDetailed(); len(errs) > 0 {
+		if errs := algorithms.VerifyDetailed(above); len(errs) > 0 {
 			fmt.Printf("  above half: %d errors\n", len(errs))
 			for _, e := range errs {
 				fmt.Printf("    %v\n", e)
@@ -200,7 +204,7 @@ func main() {
 		}
 	}
 	if below != nil {
-		if errs := below.VerifyDetailed(); len(errs) > 0 {
+		if errs := algorithms.VerifyDetailed(below); len(errs) > 0 {
 			fmt.Printf("  below half: %d errors\n", len(errs))
 			for _, e := range errs {
 				fmt.Printf("    %v\n", e)
@@ -221,17 +225,17 @@ func main() {
 	tilt1Rad := tilt1Deg * math.Pi / 180.0
 	n1x := float64(math.Sin(tilt1Rad))
 	n1z := float64(math.Cos(tilt1Rad))
-	plane1 := solid.Plane{Normal: vec.SFVec3f{X: n1x, Y: 0, Z: n1z}, D: 0}
+	plane1 := base.Plane{Normal: vec.SFVec3f{X: n1x, Y: 0, Z: n1z}, D: 0}
 
 	// ── Plane 2: tilted 30° from Y toward X (red, perpendicular-ish cut) ──
 	tilt2Deg := 30.0
 	tilt2Rad := tilt2Deg * math.Pi / 180.0
 	n2x := float64(math.Sin(tilt2Rad))
 	n2y := float64(math.Cos(tilt2Rad))
-	plane2 := solid.Plane{Normal: vec.SFVec3f{X: n2x, Y: n2y, Z: 0}, D: 0}
+	plane2 := base.Plane{Normal: vec.SFVec3f{X: n2x, Y: n2y, Z: 0}, D: 0}
 
 	// ── Plane 3: Y=0 (blue, horizontal cut) ──
-	plane3 := solid.Plane{Normal: vec.SFVec3f{X: 0, Y: 1, Z: 0}, D: 0}
+	plane3 := base.Plane{Normal: vec.SFVec3f{X: 0, Y: 1, Z: 0}, D: 0}
 
 	yellow := vec.SFColor{R: 1, G: 0.85, B: 0.1, A: 1}
 
@@ -243,7 +247,7 @@ func main() {
 	// First split → two halves (Switch choice 1).
 	cube1 := makeCube()
 	cube1.SetColor(yellow)
-	half1, half2, splitOk := cube1.Split(plane1)
+	half1, half2, splitOk := split.Split(cube1, plane1)
 	if !splitOk {
 		fmt.Fprintln(os.Stderr, "  first split failed")
 		fmt.Println()
@@ -255,25 +259,25 @@ func main() {
 	half2.Renumber()
 
 	// Second split → four quarters (Switch choice 2).
-	q1a, q1b, ok1 := half1.Copy().Split(plane2)
-	q2a, q2b, ok2 := half2.Copy().Split(plane2)
+	q1a, q1b, ok1 := split.Split(half1.Copy(), plane2)
+	q2a, q2b, ok2 := split.Split(half2.Copy(), plane2)
 	if !ok1 || !ok2 {
 		fmt.Fprintln(os.Stderr, "  second split failed")
 		fmt.Println()
 		return
 	}
-	quarters := []*solid.Solid{q1a, q1b, q2a, q2b}
+	quarters := []*base.Solid{q1a, q1b, q2a, q2b}
 	for _, q := range quarters {
 		q.SetColor(yellow)
 		q.Renumber()
 	}
 
 	// Third split → eight octants (Switch choice 3).
-	octants := make([]*solid.Solid, 8)
+	octants := make([]*base.Solid, 8)
 	octNames := []string{"o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8"}
 	allOk := true
 	for i, q := range quarters {
-		a, b, ok := q.Copy().Split(plane3)
+		a, b, ok := split.Split(q.Copy(), plane3)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "  third split of quarter %d failed\n", i)
 			allOk = false
@@ -295,7 +299,7 @@ func main() {
 	for i, o := range octants {
 		o.CalcPlaneEquations()
 		o.Renumber()
-		errs := o.VerifyDetailed()
+		errs := algorithms.VerifyDetailed(o)
 		oValid[i] = len(errs) == 0
 		f, e, v := o.Stats()
 		mn, mx := o.Extents()
@@ -335,10 +339,10 @@ func main() {
 
 // animParams bundles the geometry and plane parameters for the three-stage animation.
 type animParams struct {
-	whole              *solid.Solid
-	half1, half2       *solid.Solid
-	quarters           []*solid.Solid // [4]
-	octants            []*solid.Solid // [8]
+	whole              *base.Solid
+	half1, half2       *base.Solid
+	quarters           []*base.Solid // [4]
+	octants            []*base.Solid // [8]
 	oValid             [8]bool
 	n1x, n1z, tilt1Rad float64
 	n2x, n2y, tilt2Rad float64
@@ -444,7 +448,7 @@ func writeAnimatedSplit(path string, p animParams) error {
 	// Choice 0: whole cube
 	w("    # Choice 0: whole cube")
 	w("    Group { children [")
-	if err := p.whole.ExportVRMLShape(f, "      "); err != nil {
+	if err := export.Shape(p.whole, f, "      "); err != nil {
 		return err
 	}
 	w("    ] }")
@@ -454,12 +458,12 @@ func writeAnimatedSplit(path string, p animParams) error {
 	w("    # Choice 1: two halves")
 	w("    Group { children [")
 	w("      DEF HALF1 Transform { translation 0 0 0 children [")
-	if err := p.half1.ExportVRMLShape(f, "        "); err != nil {
+	if err := export.Shape(p.half1, f, "        "); err != nil {
 		return err
 	}
 	w("      ] }")
 	w("      DEF HALF2 Transform { translation 0 0 0 children [")
-	if err := p.half2.ExportVRMLShape(f, "        "); err != nil {
+	if err := export.Shape(p.half2, f, "        "); err != nil {
 		return err
 	}
 	w("      ] }")
@@ -472,7 +476,7 @@ func writeAnimatedSplit(path string, p animParams) error {
 	w("    Group { children [")
 	for i, q := range p.quarters {
 		wf("      DEF %s Transform { translation 0 0 0 children [", qDEFs[i])
-		if err := q.ExportVRMLShape(f, "        "); err != nil {
+		if err := export.Shape(q, f, "        "); err != nil {
 			return err
 		}
 		w("      ] }")
@@ -486,7 +490,7 @@ func writeAnimatedSplit(path string, p animParams) error {
 	w("    Group { children [")
 	for i, o := range p.octants {
 		wf("      DEF %s Transform { translation 0 0 0 children [", oDEFs[i])
-		if err := o.ExportVRMLShape(f, "        "); err != nil {
+		if err := export.Shape(o, f, "        "); err != nil {
 			return err
 		}
 		w("      ] }")
@@ -508,7 +512,7 @@ func writeAnimatedSplit(path string, p animParams) error {
 		}
 		o.SetColor(clr)
 		wf("      DEF %s Transform { translation 0 0 0 children [", coDEFs[i])
-		if err := o.ExportVRMLShape(f, "        "); err != nil {
+		if err := export.Shape(o, f, "        "); err != nil {
 			return err
 		}
 		w("      ] }")
