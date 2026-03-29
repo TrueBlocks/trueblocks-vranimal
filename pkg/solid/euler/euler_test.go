@@ -1049,10 +1049,11 @@ func TestBuildFromIndexSet_Triangle(t *testing.T) {
 	if s.NEdges() != 3 {
 		t.Errorf("E=%d, want 3", s.NEdges())
 	}
-	if s.NFaces() != 2 {
-		t.Errorf("F=%d, want 2", s.NFaces())
+	if s.NFaces() != 1 {
+		t.Errorf("F=%d, want 1", s.NFaces())
 	}
-	validateTopology(t, s)
+	// Single face is an open surface — boundary edges have nil He1.
+	// Full validateTopology not applicable.
 }
 
 func TestBuildFromIndexSet_NoTrailingSeparator(t *testing.T) {
@@ -1070,7 +1071,9 @@ func TestBuildFromIndexSet_NoTrailingSeparator(t *testing.T) {
 	if s.NVerts() != 3 {
 		t.Errorf("V=%d, want 3", s.NVerts())
 	}
-	validateTopology(t, s)
+	if s.NFaces() != 1 {
+		t.Errorf("F=%d, want 1", s.NFaces())
+	}
 }
 
 func TestBuildFromIndexSet_DegenerateFacesSkipped(t *testing.T) {
@@ -1090,7 +1093,9 @@ func TestBuildFromIndexSet_DegenerateFacesSkipped(t *testing.T) {
 	if s.NVerts() != 4 {
 		t.Errorf("V=%d, want 4", s.NVerts())
 	}
-	validateTopology(t, s)
+	if s.NFaces() != 1 {
+		t.Errorf("F=%d, want 1", s.NFaces())
+	}
 }
 
 func TestBuildFromIndexSet_AllDegenerate(t *testing.T) {
@@ -1120,19 +1125,16 @@ func TestBuildFromIndexSet_OutOfBounds(t *testing.T) {
 }
 
 func TestBuildFromIndexSet_TwoFaces(t *testing.T) {
-	// Two triangles sharing edge 1-2:
-	//   face0: 0,1,2   face1: 1,2,3
-	// This requires buildFace to correctly find same-loop half-edges.
-	// Currently broken (#56) — skip until buildFace is rewritten.
-	t.Skip("buildFace only calls one Lmef for multi-vertex faces (#56)")
-
+	// Two triangles sharing edge 1-2 with consistent winding:
+	//   face0: [0,1,2]  face1: [2,1,3]
+	// Edge 1→2 from face0 pairs with 2→1 from face1.
 	positions := []vec.SFVec3f{
 		{X: 0, Y: 0, Z: 0},
 		{X: 1, Y: 0, Z: 0},
 		{X: 0.5, Y: 1, Z: 0},
 		{X: 1.5, Y: 1, Z: 0},
 	}
-	indices := []int64{0, 1, 2, -1, 1, 2, 3, -1}
+	indices := []int64{0, 1, 2, -1, 2, 1, 3, -1}
 	s, err := BuildFromIndexSet(positions, indices, vec.White)
 	if err != nil {
 		t.Fatalf("BuildFromIndexSet two faces: %v", err)
@@ -1143,23 +1145,26 @@ func TestBuildFromIndexSet_TwoFaces(t *testing.T) {
 	if s.NEdges() != 5 {
 		t.Errorf("E=%d, want 5", s.NEdges())
 	}
-	if s.NFaces() != 3 {
-		t.Errorf("F=%d, want 3 (2 triangle + 1 outer)", s.NFaces())
+	if s.NFaces() != 2 {
+		t.Errorf("F=%d, want 2", s.NFaces())
 	}
-	validateTopology(t, s)
+	// Open surface — 4 boundary edges, 1 shared. Full topology check N/A.
 }
 
 func TestBuildFromIndexSet_Tetrahedron(t *testing.T) {
-	// 4 triangular faces — requires working buildFace for faces[1:].
-	t.Skip("buildFace only calls one Lmef for multi-vertex faces (#56)")
-
+	// 4 triangular faces with consistent outward-facing winding.
 	positions := []vec.SFVec3f{
 		{X: 0, Y: 0, Z: 0},
 		{X: 1, Y: 0, Z: 0},
 		{X: 0.5, Y: 1, Z: 0},
 		{X: 0.5, Y: 0.5, Z: 1},
 	}
-	indices := []int64{0, 1, 2, -1, 0, 1, 3, -1, 1, 2, 3, -1, 0, 2, 3, -1}
+	indices := []int64{
+		0, 2, 1, -1, // bottom
+		0, 1, 3, -1, // front
+		1, 2, 3, -1, // right
+		0, 3, 2, -1, // left
+	}
 	s, err := BuildFromIndexSet(positions, indices, vec.White)
 	if err != nil {
 		t.Fatalf("BuildFromIndexSet tetrahedron: %v", err)
@@ -1170,6 +1175,46 @@ func TestBuildFromIndexSet_Tetrahedron(t *testing.T) {
 	}
 	if s.NEdges() != 6 {
 		t.Errorf("E=%d, want 6", s.NEdges())
+	}
+	if s.NFaces() != 4 {
+		t.Errorf("F=%d, want 4", s.NFaces())
+	}
+	validateTopology(t, s)
+}
+
+func TestBuildFromIndexSet_Cube(t *testing.T) {
+	// 6 quad faces with consistent outward-facing winding.
+	positions := []vec.SFVec3f{
+		{X: 0, Y: 0, Z: 0}, // 0
+		{X: 1, Y: 0, Z: 0}, // 1
+		{X: 1, Y: 1, Z: 0}, // 2
+		{X: 0, Y: 1, Z: 0}, // 3
+		{X: 0, Y: 0, Z: 1}, // 4
+		{X: 1, Y: 0, Z: 1}, // 5
+		{X: 1, Y: 1, Z: 1}, // 6
+		{X: 0, Y: 1, Z: 1}, // 7
+	}
+	indices := []int64{
+		0, 3, 2, 1, -1, // bottom (outward = -Z)
+		4, 5, 6, 7, -1, // top (outward = +Z)
+		0, 1, 5, 4, -1, // front (outward = -Y)
+		2, 3, 7, 6, -1, // back (outward = +Y)
+		0, 4, 7, 3, -1, // left (outward = -X)
+		1, 2, 6, 5, -1, // right (outward = +X)
+	}
+	s, err := BuildFromIndexSet(positions, indices, vec.White)
+	if err != nil {
+		t.Fatalf("BuildFromIndexSet cube: %v", err)
+	}
+	// Cube: V=8, E=12, F=6
+	if s.NVerts() != 8 {
+		t.Errorf("V=%d, want 8", s.NVerts())
+	}
+	if s.NEdges() != 12 {
+		t.Errorf("E=%d, want 12", s.NEdges())
+	}
+	if s.NFaces() != 6 {
+		t.Errorf("F=%d, want 6", s.NFaces())
 	}
 	validateTopology(t, s)
 }

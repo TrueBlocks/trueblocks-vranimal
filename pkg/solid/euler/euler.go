@@ -571,6 +571,10 @@ func Lringmv(l *base.Loop, toFace *base.Face, isOuter bool) error {
 
 // BuildFromIndexSet constructs a solid from vertex positions and face indices.
 // indices uses -1 as a face separator (VRML convention).
+//
+// This uses direct half-edge construction (matching the C++ reference) so that
+// multi-face meshes are built correctly: each face gets its own loop of
+// half-edges and shared edges are paired via a map.
 func BuildFromIndexSet(positions []vec.SFVec3f, indices []int64, color vec.SFColor) (*base.Solid, error) {
 	if len(positions) == 0 || len(indices) == 0 {
 		return nil, errors.New("euler: empty positions or indices")
@@ -604,63 +608,64 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int64, color vec.SFCol
 		}
 	}
 
-	first := faces[0]
-	s, v0, _ := Mvfs(positions[first[0]], color)
+	s := base.NewSolid()
+
+	// Create all vertices.
 	verts := make([]*base.Vertex, len(positions))
-	verts[first[0]] = v0
-
-	prev := v0
-	for i := 1; i < len(first); i++ {
-		nv, _, err := Lmev(prev.He, positions[first[i]])
-		if err != nil {
-			return nil, err
-		}
-		verts[first[i]] = nv
-		prev = nv
-	}
-
-	if len(first) >= 3 {
-		if _, _, err := Lmef(v0.He, prev.He); err != nil {
-			return nil, err
-		}
-	}
-
 	for i, pos := range positions {
-		if verts[i] == nil {
-			nv, _, err := Lmev(v0.He, pos)
-			if err != nil {
-				return nil, err
-			}
-			verts[i] = nv
-		}
+		v := base.NewVertexVec(pos)
+		s.AddVertex(v)
+		verts[i] = v
 	}
 
-	for _, face := range faces[1:] {
-		if err := buildFace(s, verts, face); err != nil {
-			return nil, err
+	// Edge pairing map: (fromIdx, toIdx) → half-edge.
+	type edgeKey struct{ from, to int64 }
+	heMap := make(map[edgeKey]*base.HalfEdge)
+
+	// Build each face.
+	for _, face := range faces {
+		f := base.NewFace(s, color)
+		s.AddFace(f)
+		l := base.NewLoop(f, true)
+
+		n := len(face)
+		for i := 0; i < n; i++ {
+			he := &base.HalfEdge{Vertex: verts[face[i]], Loop: l}
+			l.AddHalfEdge(he)
+		}
+
+		// Pair half-edges into edges.
+		he := l.HalfEdges
+		for i := 0; i < n; i++ {
+			fromIdx := face[i]
+			toIdx := face[(i+1)%n]
+
+			reverse := edgeKey{from: toIdx, to: fromIdx}
+			if mate, ok := heMap[reverse]; ok {
+				// Found mate — pair into existing edge.
+				e := mate.Edge
+				e.He1 = he
+				he.Edge = e
+				delete(heMap, reverse)
+			} else {
+				// First encounter — create edge, store for future pairing.
+				e := base.NewEdge()
+				s.AddEdge(e)
+				e.He2 = he
+				he.Edge = e
+				heMap[edgeKey{from: fromIdx, to: toIdx}] = he
+			}
+
+			// Update vertex → half-edge back-pointer.
+			verts[face[i]].He = he
+
+			he = he.Next
 		}
 	}
 
 	s.CalcPlaneEquations()
 	s.Renumber()
 	return s, nil
-}
-
-func buildFace(s *base.Solid, verts []*base.Vertex, indices []int64) error {
-	_ = s
-	if len(indices) < 3 {
-		return nil
-	}
-	v0 := verts[indices[0]]
-	v1 := verts[indices[1]]
-	if v0 == nil || v1 == nil {
-		return ErrNilVertex
-	}
-	if v0.He == nil || v1.He == nil {
-		return ErrNilHalfEdge
-	}
-	_, _, err := Lmef(v0.He, v1.He)
-	return err
 }
 
 // MarkCreases marks edges as creases based on the crease angle.
