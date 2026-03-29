@@ -15,7 +15,22 @@ var (
 	ErrNilLoop        = errors.New("euler: nil loop")
 	ErrDifferentLoops = errors.New("euler: half-edges are in different loops")
 	ErrDifferentVerts = errors.New("euler: half-edges reference different vertices")
+	ErrNilSolid       = errors.New("euler: nil solid")
+	ErrNonManifold    = errors.New("euler: non-manifold topology (nil mate in orbit)")
+	ErrSameFace       = errors.New("euler: killFace and keepFace are the same")
+	ErrSameLoop       = errors.New("euler: both half-edges are in the same loop")
 )
+
+func getSolid(he *base.HalfEdge) (*base.Solid, error) {
+	f := he.GetFace()
+	if f == nil {
+		return nil, ErrNilFace
+	}
+	if f.Solid == nil {
+		return nil, ErrNilSolid
+	}
+	return f.Solid, nil
+}
 
 // insertBefore inserts nhe immediately before he in the circular half-edge ring.
 func insertBefore(he, nhe *base.HalfEdge) {
@@ -54,10 +69,10 @@ func Lmev(he *base.HalfEdge, loc vec.SFVec3f) (*base.Vertex, *base.Edge, error) 
 	if he == nil {
 		return nil, nil, ErrNilHalfEdge
 	}
-	if he.GetFace() == nil {
-		return nil, nil, ErrNilFace
+	s, err := getSolid(he)
+	if err != nil {
+		return nil, nil, err
 	}
-	s := he.GetFace().Solid
 	nv := base.NewVertexVec(loc)
 	s.AddVertex(nv)
 
@@ -98,7 +113,10 @@ func Lmev2(he1, he2 *base.HalfEdge, loc vec.SFVec3f) (*base.Vertex, *base.Edge, 
 	if he1.Vertex != he2.Vertex {
 		return nil, nil, ErrDifferentVerts
 	}
-	s := he1.GetFace().Solid
+	s, err := getSolid(he1)
+	if err != nil {
+		return nil, nil, err
+	}
 	nv := base.NewVertexVec(loc)
 	s.AddVertex(nv)
 
@@ -107,12 +125,22 @@ func Lmev2(he1, he2 *base.HalfEdge, loc vec.SFVec3f) (*base.Vertex, *base.Edge, 
 
 	he := he1
 	for he != he2 {
-		he.Vertex = nv
 		m := he.GetMate()
 		if m == nil {
-			break
+			s.RemoveEdge(ne)
+			s.RemoveVertex(nv)
+			return nil, nil, ErrNonManifold
 		}
 		he = m.Next
+		if he == he1 {
+			break
+		}
+	}
+
+	he = he1
+	for he != he2 {
+		he.Vertex = nv
+		he = he.GetMate().Next
 		if he == he1 {
 			break
 		}
@@ -141,8 +169,11 @@ func Lmef(he1, he2 *base.HalfEdge) (*base.Face, *base.Edge, error) {
 	if he1.Loop != he2.Loop {
 		return nil, nil, ErrDifferentLoops
 	}
+	s, err := getSolid(he1)
+	if err != nil {
+		return nil, nil, err
+	}
 	old := he1.GetFace()
-	s := old.Solid
 
 	nf := base.NewFace(s, old.GetColor(vec.White))
 	s.AddFace(nf)
@@ -185,7 +216,10 @@ func Lkev(he *base.HalfEdge) error {
 	if he.Edge == nil {
 		return ErrNilEdge
 	}
-	s := he.GetFace().Solid
+	s, err := getSolid(he)
+	if err != nil {
+		return err
+	}
 	e := he.Edge
 	mate := he.GetMate()
 
@@ -197,12 +231,23 @@ func Lkev(he *base.HalfEdge) error {
 		if cur.Vertex != killV {
 			break
 		}
-		cur.Vertex = keepV
 		m := cur.GetMate()
 		if m == nil {
-			break
+			return ErrNonManifold
 		}
 		cur = m.Next
+		if cur == mate.Next {
+			break
+		}
+	}
+
+	cur = mate.Next
+	for cur != he {
+		if cur.Vertex != killV {
+			break
+		}
+		cur.Vertex = keepV
+		cur = cur.GetMate().Next
 		if cur == mate.Next {
 			break
 		}
@@ -244,11 +289,20 @@ func Lkef(he *base.HalfEdge) error {
 	if he.Edge == nil {
 		return ErrNilEdge
 	}
-	s := he.GetFace().Solid
+	s, err := getSolid(he)
+	if err != nil {
+		return err
+	}
 	e := he.Edge
 	mate := he.GetMate()
 	keepF := he.GetFace()
 	killF := mate.GetFace()
+
+	// Same-loop edges are bridge edges within a face — Lkef cannot
+	// split a loop into two (use Lkemr for that).
+	if he.Loop == mate.Loop {
+		return ErrSameLoop
+	}
 
 	if killF != keepF {
 		for len(killF.Loops) > 0 {
@@ -302,6 +356,9 @@ func Lkef(he *base.HalfEdge) error {
 }
 
 // Lkemr kills an edge, creating a new inner ring (Kill Edge Make Ring).
+// When he and mate are in the same loop, the loop splits into outer + inner ring.
+// When he and mate are in different loops (cross-face edge from a prior Lmef),
+// the two loops merge into one and the mate's face is absorbed.
 func Lkemr(he *base.HalfEdge) error {
 	if he == nil {
 		return ErrNilHalfEdge
@@ -309,29 +366,90 @@ func Lkemr(he *base.HalfEdge) error {
 	if he.Edge == nil {
 		return ErrNilEdge
 	}
-	s := he.GetFace().Solid
+	s, err := getSolid(he)
+	if err != nil {
+		return err
+	}
 	e := he.Edge
 	mate := he.GetMate()
 	f := he.GetFace()
+	mateLoop := mate.Loop
+	mateF := mate.GetFace()
 
-	nl := base.NewLoop(f, false)
+	// Splice he and mate out of their rings.
+	hePrev := he.Prev
+	heNext := he.Next
+	matePrev := mate.Prev
+	mateNext := mate.Next
 
-	he.Prev.Next = mate.Next
-	mate.Next.Prev = he.Prev
+	hePrev.Next = mateNext
+	mateNext.Prev = hePrev
 
-	mate.Prev.Next = he.Next
-	he.Next.Prev = mate.Prev
+	matePrev.Next = heNext
+	heNext.Prev = matePrev
 
-	he.Loop.SetFirstHe(he.Prev)
-
-	nl.HalfEdges = mate.Prev
-	cur := mate.Prev
+	// Determine whether the splice produced one ring or two.
+	// Walk from hePrev and check if matePrev is in the same ring.
+	sameRing := false
+	cur := hePrev
 	start := cur
 	for {
-		cur.Loop = nl
+		if cur == matePrev {
+			sameRing = true
+			break
+		}
 		cur = cur.Next
 		if cur == start {
 			break
+		}
+	}
+
+	if sameRing {
+		// One ring: he and mate were in different loops. The splice merged
+		// them into a single ring. Assign all to he.Loop in he's face.
+		cur = hePrev
+		start = cur
+		for {
+			cur.Loop = he.Loop
+			cur = cur.Next
+			if cur == start {
+				break
+			}
+		}
+		he.Loop.SetFirstHe(hePrev)
+
+		// Clean up the mate's now-empty loop and face.
+		if mateLoop != he.Loop {
+			mateLoop.HalfEdges = nil
+			mateF.RemoveLoop(mateLoop)
+			if mateF != f && len(mateF.Loops) == 0 {
+				s.RemoveFace(mateF)
+			}
+		}
+	} else {
+		// Two rings: he and mate were in the same loop. The splice split
+		// it into outer (hePrev side) and inner (matePrev side).
+		he.Loop.SetFirstHe(hePrev)
+		cur = hePrev
+		start = cur
+		for {
+			cur.Loop = he.Loop
+			cur = cur.Next
+			if cur == start {
+				break
+			}
+		}
+
+		nl := base.NewLoop(f, false)
+		nl.HalfEdges = matePrev
+		cur = matePrev
+		start = cur
+		for {
+			cur.Loop = nl
+			cur = cur.Next
+			if cur == start {
+				break
+			}
 		}
 	}
 
@@ -344,7 +462,10 @@ func Lmekr(he1, he2 *base.HalfEdge) (*base.Edge, error) {
 	if he1 == nil || he2 == nil {
 		return nil, ErrNilHalfEdge
 	}
-	s := he1.GetFace().Solid
+	s, err := getSolid(he1)
+	if err != nil {
+		return nil, err
+	}
 	ne := base.NewEdge()
 	s.AddEdge(ne)
 
@@ -404,11 +525,6 @@ func Lmfkrh(innerLoop *base.Loop) (*base.Face, error) {
 	f.RemoveLoop(innerLoop)
 	nf.AddLoop(innerLoop, true)
 
-	innerLoop.ForEachHe(func(he *base.HalfEdge) bool {
-		he.Loop = innerLoop
-		return true
-	})
-
 	return nf, nil
 }
 
@@ -416,6 +532,9 @@ func Lmfkrh(innerLoop *base.Loop) (*base.Face, error) {
 func Lkfmrh(killFace, keepFace *base.Face) error {
 	if killFace == nil || keepFace == nil {
 		return ErrNilFace
+	}
+	if killFace == keepFace {
+		return ErrSameFace
 	}
 	if killFace.LoopOut == nil {
 		return ErrNilLoop
@@ -425,17 +544,19 @@ func Lkfmrh(killFace, keepFace *base.Face) error {
 	killFace.RemoveLoop(l)
 	keepFace.AddLoop(l, false)
 
-	l.ForEachHe(func(he *base.HalfEdge) bool {
-		he.Loop = l
-		return true
-	})
+	// Transfer any remaining loops (inner holes) to keepFace.
+	for len(killFace.Loops) > 0 {
+		inner := killFace.Loops[0]
+		killFace.RemoveLoop(inner)
+		keepFace.AddLoop(inner, false)
+	}
 
 	s.RemoveFace(killFace)
 	return nil
 }
 
 // Lringmv moves a loop from one face to another.
-func Lringmv(s *base.Solid, l *base.Loop, toFace *base.Face, isOuter bool) error {
+func Lringmv(l *base.Loop, toFace *base.Face, isOuter bool) error {
 	if l == nil {
 		return ErrNilLoop
 	}
@@ -472,6 +593,15 @@ func BuildFromIndexSet(positions []vec.SFVec3f, indices []int64, color vec.SFCol
 	}
 	if len(faces) == 0 {
 		return nil, errors.New("euler: no valid faces in index set")
+	}
+
+	// Validate all indices are in bounds.
+	for _, face := range faces {
+		for _, idx := range face {
+			if idx < 0 || int(idx) >= len(positions) {
+				return nil, errors.New("euler: index out of bounds")
+			}
+		}
 	}
 
 	first := faces[0]
