@@ -56,6 +56,18 @@ func (p *Picker) SetSize(width, height int) {
 	p.height = height
 }
 
+// StealTouchCapture clears the captured sensor if it is a TouchSensor and
+// returns it. Drag sensors (Plane, Sphere, Cylinder) are left alone.
+// The caller is responsible for eventually setting IsActive=false.
+func (p *Picker) StealTouchCapture() *node.TouchSensor {
+	ts, ok := p.captured.(*node.TouchSensor)
+	if !ok {
+		return nil
+	}
+	p.captured = nil
+	return ts
+}
+
 // PointerAction indicates the type of mouse interaction.
 type PointerAction int
 

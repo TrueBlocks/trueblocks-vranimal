@@ -169,6 +169,10 @@ func main() {
 			}
 		}
 	}
+
+	// Forward-declare vs so mouse closures can reference it.
+	var vs *viewerState
+
 	// Always subscribe to mouse events — bool demo meshes get TouchSensors dynamically.
 	a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
 		mev := ev.(*window.MouseEvent)
@@ -177,11 +181,23 @@ func main() {
 		}
 		picker.SimTime = br.SimTime()
 		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerDown)
+		// Don't let the picker stay captured for TouchSensors — that blocks
+		// keyboard shortcuts and orbit control during the hold.
+		// We release the sensor ourselves on mouse-up instead.
+		if ts := picker.StealTouchCapture(); ts != nil && vs != nil {
+			vs.pickedSensor = ts
+		}
 	})
 	a.Subscribe(window.OnMouseUp, func(evname string, ev interface{}) {
 		mev := ev.(*window.MouseEvent)
 		if mev.Button != window.MouseButtonLeft {
 			return
+		}
+		// Release any touch sensor we stole from the picker.
+		if vs != nil && vs.pickedSensor != nil {
+			vs.pickedSensor.IsActive = false
+			vs.pickedSensor.IsOver = false
+			vs.pickedSensor = nil
 		}
 		picker.SimTime = br.SimTime()
 		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerUp)
@@ -217,7 +233,7 @@ func main() {
 	// Set up GUI manager and menu bar
 	gui.Manager().Set(scene)
 
-	vs := &viewerState{
+	vs = &viewerState{
 		wireframe:   false,
 		axesVisible: true,
 		axes:        axes,

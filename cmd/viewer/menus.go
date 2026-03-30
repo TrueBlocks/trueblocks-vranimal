@@ -177,11 +177,9 @@ type viewerState struct {
 	resultSpan   float64       // offset for result positioning
 
 	// Pick highlighting via TouchSensor + Route
-	touchSensorA *node.TouchSensor
-	touchSensorB *node.TouchSensor
-	vrmlMatA     *node.Material
-	vrmlMatB     *node.Material
-	pickRoutes   []*node.Route
+	pickTargets      []pickTarget
+	pickRoutes       []*node.Route
+	pickedSensor     *node.TouchSensor // active sensor during mouse-down
 
 	// Wireframe: saved original materials keyed by mesh pointer
 	savedMaterials map[*graphic.Mesh][]material.IMaterial
@@ -500,28 +498,36 @@ func restoreMaterialsRecursive(vs *viewerState, n core.INode) {
 
 // ────────────────────────── Pick highlighting ──────────────────────────
 
+// pickTarget pairs a g3n node with its VRML TouchSensor/Material for pick-highlighting.
+type pickTarget struct {
+	gNode  *core.Node
+	sensor *node.TouchSensor
+	mat    *node.Material
+}
+
 // setupPickSensors creates VRML TouchSensors and Routes so that clicking a
 // bool-demo solid highlights it red while the mouse button is held.
 func setupPickSensors(vs *viewerState) {
 	if vs.browser == nil {
 		return
 	}
+	addPickTarget(vs, vs.meshANode, yellow)
+	addPickTarget(vs, vs.meshBNode, lightBlue)
+}
 
-	vs.touchSensorA = node.NewTouchSensor()
-	vs.touchSensorB = node.NewTouchSensor()
-	vs.vrmlMatA = &node.Material{DiffuseColor: yellow}
-	vs.vrmlMatB = &node.Material{DiffuseColor: lightBlue}
+// addPickTarget creates a TouchSensor + Material + Route for a mesh node.
+func addPickTarget(vs *viewerState, meshNode *core.Node, color vec.SFColor) {
+	if meshNode == nil {
+		return
+	}
+	ts := node.NewTouchSensor()
+	mat := &node.Material{DiffuseColor: color}
+	tagMeshChildren(meshNode, ts)
 
-	// Tag the actual g3n meshes (not the parent nodes) with VRML children
-	// so the Picker's findSensorGroup finds the sensors on the hit object.
-	tagMeshChildren(vs.meshANode, vs.touchSensorA)
-	tagMeshChildren(vs.meshBNode, vs.touchSensorB)
-
-	// Routes: TouchSensor.isActive → Material.isActive (highlight/restore).
-	rA := node.NewRoute(vs.touchSensorA, node.IsActiveStr, vs.vrmlMatA, node.IsActiveStr)
-	rB := node.NewRoute(vs.touchSensorB, node.IsActiveStr, vs.vrmlMatB, node.IsActiveStr)
-	vs.pickRoutes = []*node.Route{rA, rB}
-	vs.browser.Routes = append(vs.browser.Routes, rA, rB)
+	r := node.NewRoute(ts, node.IsActiveStr, mat, node.IsActiveStr)
+	vs.pickTargets = append(vs.pickTargets, pickTarget{gNode: meshNode, sensor: ts, mat: mat})
+	vs.pickRoutes = append(vs.pickRoutes, r)
+	vs.browser.Routes = append(vs.browser.Routes, r)
 }
 
 // tagMeshChildren sets UserData on each graphic.Mesh child of parent so the
@@ -554,17 +560,16 @@ func clearPickSensors(vs *viewerState) {
 		vs.browser.Routes = kept
 	}
 	vs.pickRoutes = nil
-	vs.touchSensorA = nil
-	vs.touchSensorB = nil
-	vs.vrmlMatA = nil
-	vs.vrmlMatB = nil
+	vs.pickTargets = nil
+	vs.pickedSensor = nil
 }
 
 // syncPickColors propagates VRML Material.DiffuseColor (set by routes) to
 // the g3n mesh materials so the highlight is visible in the renderer.
 func syncPickColors(vs *viewerState) {
-	syncPickMesh(vs.vrmlMatA, vs.meshANode, vs.wireframe)
-	syncPickMesh(vs.vrmlMatB, vs.meshBNode, vs.wireframe)
+	for _, pt := range vs.pickTargets {
+		syncPickMesh(pt.mat, pt.gNode, vs.wireframe)
+	}
 }
 
 func syncPickMesh(vrmlMat *node.Material, meshNode *core.Node, wireframe bool) {
@@ -789,6 +794,10 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	if vs.wireframe {
 		applyWireframeRecursive(vs, resultGroup)
 	}
+
+	// Make result mesh pickable
+	green := vec.SFColor{R: 0.2, G: 0.8, B: 0.3, A: 1}
+	addPickTarget(vs, resultGroup, green)
 
 	pos := resultGroup.Position()
 	fmt.Fprintf(os.Stderr, "Bool %s: result displayed at (%.1f, %.1f, %.1f)\n", name, pos.X, pos.Y, pos.Z)
