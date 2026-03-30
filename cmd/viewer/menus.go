@@ -218,6 +218,7 @@ func setupMenuBar(vs *viewerState) *gui.Menu {
 	mb.AddMenu("View", buildViewMenu(vs))
 	mb.AddMenu("Bool", buildBoolMenu(vs))
 	mb.AddMenu("Primitives", buildPrimitivesMenu(vs))
+	mb.AddMenu("Solids", buildSolidsMenu(vs))
 	mb.AddMenu("Debug", buildDebugMenu(vs))
 
 	return mb
@@ -854,6 +855,26 @@ func buildPrimitivesMenu(vs *viewerState) *gui.Menu {
 	return m
 }
 
+// buildSolidsMenu creates a menu to display complex solid objects ported from the C++ tests.
+func buildSolidsMenu(vs *viewerState) *gui.Menu {
+	m := gui.NewMenu()
+
+	logo := m.AddOption("Logo")
+	logo.Subscribe(gui.OnClick, func(string, interface{}) {
+		showLogo(vs)
+	})
+
+	for _, sd := range solidDefs {
+		def := sd
+		opt := m.AddOption(def.name)
+		opt.Subscribe(gui.OnClick, func(string, interface{}) {
+			showSolid(vs, def.name, def.make)
+		})
+	}
+
+	return m
+}
+
 // showPrimitive adds a single primitive solid to the scene.
 var lastPrimitiveTime time.Time
 
@@ -884,6 +905,173 @@ func showPrimitive(vs *viewerState, name string, makeFn func() *base.Solid) {
 
 	if vs.wireframe {
 		applyWireframeRecursive(vs, gn)
+	}
+}
+
+// showSolid adds a solid to the scene using per-face colors from the solid data.
+var lastSolidTime time.Time
+
+func showSolid(vs *viewerState, name string, makeFn func() *base.Solid) {
+	if time.Since(lastSolidTime) < 200*time.Millisecond {
+		return
+	}
+	lastSolidTime = time.Now()
+
+	s := makeFn()
+	if s == nil {
+		return
+	}
+	s.CalcPlaneEquations()
+
+	mesh := solidToMesh(s, nil)
+	if mesh == nil {
+		return
+	}
+
+	xf := node.NewTransform()
+	gn := core.NewNode()
+	gn.Add(mesh)
+	vs.scene.Add(gn)
+	vs.nodeMap.Transforms[xf] = gn
+	addPickTarget(vs, gn, xf, yellow, makeFn)
+
+	if vs.wireframe {
+		applyWireframeRecursive(vs, gn)
+	}
+}
+
+// showLogo adds the VRaniML logo with spinning letter animations.
+// Ported from the C++ Logo.cpp: letters spin on random axes, the whole logo
+// flies in from far away and settles to face the viewer, then loops.
+var lastLogoTime time.Time
+
+func showLogo(vs *viewerState) {
+	if time.Since(lastLogoTime) < 200*time.Millisecond {
+		return
+	}
+	lastLogoTime = time.Now()
+
+	ts := node.NewTimeSensor()
+	ts.CycleInterval = 3.0
+	ts.Loop = true
+	ts.Enabled = true
+	ts.IsActive = true
+
+	// "group" transform: positions/scales the letter group (static, not animated)
+	groupXf := node.NewTransform()
+	groupXf.Translation = vec.SFVec3f{X: 0.5, Y: -1.2, Z: 0}
+	groupXf.Scale = vec.SFVec3f{X: 2, Y: 2, Z: 2}
+	groupXf.Rotation = vec.SFRotation{X: 1, Y: 0, Z: 0, W: -82 * math.Pi / 180}
+	groupGN := core.NewNode()
+
+	// Build each letter with per-letter spin animation
+	for _, ld := range logoDefs {
+		s := ld.make()
+		if s == nil {
+			continue
+		}
+		s.CalcPlaneEquations()
+
+		mesh := solidToMesh(s, nil)
+		if mesh == nil {
+			continue
+		}
+
+		letterXf := node.NewTransform()
+		letterXf.Translation = vec.SFVec3f{X: ld.xOff, Y: 0, Z: 0}
+
+		letterGN := core.NewNode()
+		letterGN.Add(mesh)
+		groupGN.Add(letterGN)
+		vs.nodeMap.Transforms[letterXf] = letterGN
+
+		// Per-letter spin: 5 keys at 0..0.8, full 360° by key 0.8, then holds
+		axis := ld.axis
+		fullAngle := 2 * math.Pi
+		ori := &node.OrientationInterpolator{}
+		ori.Key = []float64{0.0, 0.2, 0.4, 0.6, 0.8}
+		ori.KeyValue = []vec.SFRotation{
+			{X: axis.X, Y: axis.Y, Z: axis.Z, W: 0},
+			{X: axis.X, Y: axis.Y, Z: axis.Z, W: fullAngle * 0.25},
+			{X: axis.X, Y: axis.Y, Z: axis.Z, W: fullAngle * 0.5},
+			{X: axis.X, Y: axis.Y, Z: axis.Z, W: fullAngle * 0.75},
+			{X: axis.X, Y: axis.Y, Z: axis.Z, W: fullAngle},
+		}
+
+		vs.browser.AddRoute(ts, "fraction_changed", ori, "set_fraction")
+		vs.browser.AddRoute(ori, "value_changed", letterXf, "set_rotation")
+	}
+
+	// Add base cylinders under the letters
+	purpleCyl := primitives.MakeCylinder(1.0, 0.15, 20, vec.SFColor{R: 0.75, G: 0, B: 1.0, A: 1})
+	purpleCyl.CalcPlaneEquations()
+	solidScale(purpleCyl, 8, 1, 2)
+	purpleMesh := solidToMesh(purpleCyl, nil)
+	if purpleMesh != nil {
+		cylXf := node.NewTransform()
+		cylXf.Translation = vec.SFVec3f{X: 0, Y: -1.25, Z: -1}
+		cylXf.Rotation = vec.SFRotation{X: 1, Y: 0, Z: 0, W: 8 * math.Pi / 180}
+		cylGN := core.NewNode()
+		cylGN.Add(purpleMesh)
+		groupGN.Add(cylGN)
+		vs.nodeMap.Transforms[cylXf] = cylGN
+	}
+
+	whiteCyl := primitives.MakeCylinder(1.1, 0.12, 20, vrWhite)
+	whiteCyl.CalcPlaneEquations()
+	solidScale(whiteCyl, 8, 1, 2)
+	whiteMesh := solidToMesh(whiteCyl, nil)
+	if whiteMesh != nil {
+		cylXf2 := node.NewTransform()
+		cylXf2.Translation = vec.SFVec3f{X: 0, Y: -1.25, Z: -1}
+		cylXf2.Rotation = vec.SFRotation{X: 1, Y: 0, Z: 0, W: 8 * math.Pi / 180}
+		cylGN2 := core.NewNode()
+		cylGN2.Add(whiteMesh)
+		groupGN.Add(cylGN2)
+		vs.nodeMap.Transforms[cylXf2] = cylGN2
+	}
+
+	// "top" transform: animated fly-in and tilt correction
+	topXf := node.NewTransform()
+	topGN := core.NewNode()
+	topGN.Add(groupGN)
+	vs.nodeMap.Transforms[groupXf] = groupGN
+
+	vs.scene.Add(topGN)
+	vs.nodeMap.Transforms[topXf] = topGN
+
+	// Top-level fly-in: position from far away to origin
+	posInterp := &node.PositionInterpolator{}
+	posInterp.Key = []float64{0.0, 0.2, 0.4, 0.6, 0.8}
+	posInterp.KeyValue = []vec.SFVec3f{
+		{X: -6, Y: -3, Z: -32},
+		{X: -3, Y: -2, Z: -24},
+		{X: 0, Y: -1, Z: -12},
+		{X: 2, Y: -0.5, Z: -4},
+		{X: 0, Y: 0, Z: 0},
+	}
+	vs.browser.AddRoute(ts, "fraction_changed", posInterp, "set_fraction")
+	vs.browser.AddRoute(posInterp, "value_changed", topXf, "set_translation")
+
+	// Top-level tilt correction: axis=(1,0,1) angle 0.6 → 0
+	ax := math.Sqrt(0.5)
+	topOri := &node.OrientationInterpolator{}
+	topOri.Key = []float64{0.0, 0.2, 0.4, 0.6, 0.8}
+	topOri.KeyValue = []vec.SFRotation{
+		{X: ax, Y: 0, Z: ax, W: 0.6},
+		{X: ax, Y: 0, Z: ax, W: 0.5},
+		{X: ax, Y: 0, Z: ax, W: 0.3},
+		{X: ax, Y: 0, Z: ax, W: 0.2},
+		{X: ax, Y: 0, Z: ax, W: 0.0},
+	}
+	vs.browser.AddRoute(ts, "fraction_changed", topOri, "set_fraction")
+	vs.browser.AddRoute(topOri, "value_changed", topXf, "set_rotation")
+
+	vs.browser.Children = append(vs.browser.Children, ts)
+	vs.browser.TimeSensors = append(vs.browser.TimeSensors, ts)
+
+	if vs.wireframe {
+		applyWireframeRecursive(vs, topGN)
 	}
 }
 
@@ -1076,12 +1264,15 @@ func runBoolOp(vs *viewerState, op int, name string) {
 }
 
 // solidToMesh converts a B-rep Solid into a g3n Mesh for rendering.
+// When color is nil, per-face colors from the solid are used (vertex coloring).
 func solidToMesh(s *base.Solid, color *math32.Color) *graphic.Mesh {
 	s.Renumber()
 
 	positions := math32.NewArrayF32(0, 0)
 	normals := math32.NewArrayF32(0, 0)
+	colors := math32.NewArrayF32(0, 0)
 	indices := math32.NewArrayU32(0, 0)
+	useFaceColors := (color == nil)
 
 	vi := uint32(0)
 	for f := s.Faces; f != nil; f = f.Next {
@@ -1103,11 +1294,23 @@ func solidToMesh(s *base.Solid, color *math32.Color) *graphic.Mesh {
 		ny := float32(f.Normal.Y)
 		nz := float32(f.Normal.Z)
 
+		// Per-face color
+		var cr, cg, cb float32
+		if useFaceColors {
+			fc := f.GetColor(vec.SFColor{R: 0.8, G: 0.8, B: 0.8, A: 1})
+			cr = float32(fc.R)
+			cg = float32(fc.G)
+			cb = float32(fc.B)
+		}
+
 		// Add vertices with face normal
 		startVI := vi
 		for _, v := range faceVerts {
 			positions.Append(float32(v.X), float32(v.Y), float32(v.Z))
 			normals.Append(nx, ny, nz)
+			if useFaceColors {
+				colors.Append(cr, cg, cb)
+			}
 			vi++
 		}
 
@@ -1124,12 +1327,17 @@ func solidToMesh(s *base.Solid, color *math32.Color) *graphic.Mesh {
 	geom := geometry.NewGeometry()
 	geom.AddVBO(gls.NewVBO(positions).AddAttrib(gls.VertexPosition))
 	geom.AddVBO(gls.NewVBO(normals).AddAttrib(gls.VertexNormal))
+	if useFaceColors {
+		geom.AddVBO(gls.NewVBO(colors).AddAttrib(gls.VertexColor))
+	}
 	geom.SetIndices(indices)
 
+	var mat *material.Standard
 	if color == nil {
-		color = &math32.Color{R: 0.8, G: 0.8, B: 0.8}
+		mat = material.NewStandard(&math32.Color{R: 1, G: 1, B: 1})
+	} else {
+		mat = material.NewStandard(color)
 	}
-	mat := material.NewStandard(color)
 	mat.SetSide(material.SideDouble)
 	mat.SetShininess(30)
 	return graphic.NewMesh(geom, mat)
