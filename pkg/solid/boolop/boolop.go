@@ -20,21 +20,25 @@ type VertFaceRecord struct {
 }
 
 type BoolopRecord struct {
-	A         *base.Solid
-	B         *base.Solid
-	Op        int
-	Result    *base.Solid
-	VertsV    []VertVertRecord
-	VertsA    []VertFaceRecord
-	VertsB    []VertFaceRecord
-	EdgesA    []*base.Edge
-	EdgesB    []*base.Edge
-	FacesA    []*base.Face
-	FacesB    []*base.Face
-	NoVV      bool
-	Quit      bool
-	Perturbed bool // input was perturbed to resolve degeneracy
+	A             *base.Solid
+	B             *base.Solid
+	Op            int
+	Result        *base.Solid
+	VertsV        []VertVertRecord
+	VertsA        []VertFaceRecord
+	VertsB        []VertFaceRecord
+	EdgesA        []*base.Edge
+	EdgesB        []*base.Edge
+	FacesA        []*base.Face
+	FacesB        []*base.Face
+	NoVV          bool
+	Quit          bool
+	Perturbed     bool // input was perturbed to resolve degeneracy
+	UsedLastDitch bool // result came from the LastDitch fallback
 }
+
+// lastDitchUsed is set by LastDitch() and cleared by BoolOp() at the start.
+var lastDitchUsed bool
 
 func NewBoolopRecord() *BoolopRecord {
 	return &BoolopRecord{}
@@ -199,16 +203,22 @@ func (br *BoolopRecord) vertexOnFace(v *base.Vertex, f *base.Face) {
 func (br *BoolopRecord) LastDitch() bool {
 	aContainsB := algorithms.SolidContains(br.A, br.B)
 	bContainsA := algorithms.SolidContains(br.B, br.A)
+	var ok bool
 	switch {
 	case aContainsB && bContainsA:
-		return br.lastDitchIdentical()
+		ok = br.lastDitchIdentical()
 	case aContainsB:
-		return br.lastDitchAContainsB()
+		ok = br.lastDitchAContainsB()
 	case bContainsA:
-		return br.lastDitchBContainsA()
+		ok = br.lastDitchBContainsA()
 	default:
-		return br.lastDitchDisjoint()
+		ok = br.lastDitchDisjoint()
 	}
+	if ok {
+		br.UsedLastDitch = true
+		lastDitchUsed = true
+	}
+	return ok
 }
 
 func (br *BoolopRecord) lastDitchIdentical() bool {
@@ -313,8 +323,18 @@ func IsDegenerate(a, b *base.Solid) bool {
 }
 
 func BoolOp(a, b *base.Solid, op int) (*base.Solid, bool) {
-	perturb := IsDegenerate(a, b)
-	return boolOpCore(a, b, op, perturb)
+	lastDitchUsed = false
+	if !IsDegenerate(a, b) {
+		return boolOpCore(a, b, op, false)
+	}
+	// For Difference, try targeted face-normal perturbation first.
+	if op == base.BoolDifference {
+		if res, ok := boolOpCoreTargeted(a, b, op); ok {
+			return res, true
+		}
+	}
+	// Fall back to uniform perturbation.
+	return boolOpCore(a, b, op, true)
 }
 
 func boolOpCore(a, b *base.Solid, op int, perturb bool) (*base.Solid, bool) {
@@ -375,6 +395,122 @@ func snapVertices(s *base.Solid) {
 	}
 }
 
+// boolOpCoreTargeted tries a Difference with face-normal perturbation:
+// only B-faces that are coplanar with an A-face get pushed along the
+// A-face normal. Returns (nil, false) if the result is degenerate.
+func boolOpCoreTargeted(a, b *base.Solid, op int) (*base.Solid, bool) {
+	workA := a.Copy()
+	workB := b.Copy()
+	workA.CalcPlaneEquations()
+	workB.CalcPlaneEquations()
+	perturbCoincidentFaces(workA, workB)
+	// Re-check: if still degenerate, signal failure so caller falls back.
+	if IsDegenerate(workA, workB) {
+		return nil, false
+	}
+	workA.SetFaceMarks(base.UNKNOWN)
+	workA.SetVertexMarks(base.UNKNOWN)
+	workB.SetFaceMarks(base.UNKNOWN)
+	workB.SetVertexMarks(base.UNKNOWN)
+	br := NewBoolopRecord()
+	br.Reset(workA, workB, op)
+	br.Perturbed = true
+	br.Generate()
+	if br.Quit {
+		return nil, false
+	}
+	if !br.Classify() {
+		if br.Quit {
+			return nil, false
+		}
+		ok := br.LastDitch()
+		if ok {
+			br.Complete()
+		}
+		return br.Result, ok
+	}
+	br.Connect()
+	if br.Quit {
+		return nil, false
+	}
+	br.Finish()
+	if br.Quit {
+		return nil, false
+	}
+	br.Complete()
+	if br.Result != nil {
+		snapVertices(br.Result)
+	}
+	return br.Result, br.Result != nil
+}
+
+// perturbCoincidentFaces pushes B vertices that lie on coplanar A-faces
+// along the A-face normal. Each vertex accumulates contributions from
+// every coplanar face pair it belongs to, then all offsets are applied
+// at once. This avoids the problem of a vertex shared by multiple
+// coplanar faces being only partially resolved.
+func perturbCoincidentFaces(a, b *base.Solid) {
+	const eps = 1e-4
+	// Accumulate a displacement vector for each B vertex.
+	accum := make(map[*base.Vertex]vec.SFVec3f)
+	for fB := b.Faces; fB != nil; fB = fB.Next {
+		for fA := a.Faces; fA != nil; fA = fA.Next {
+			if !facesCoplanar(fA, fB) {
+				continue
+			}
+			// Push every vertex of this B face along A's normal.
+			push := fA.Normal.Scale(eps)
+			he := fB.GetFirstHe()
+			if he == nil {
+				continue
+			}
+			start := he
+			for {
+				v := he.Vertex
+				prev := accum[v]
+				accum[v] = prev.Add(push)
+				he = he.Next
+				if he == start {
+					break
+				}
+			}
+		}
+	}
+	// Apply accumulated offsets.
+	for v, offset := range accum {
+		v.Loc = v.Loc.Add(offset)
+	}
+	// Recompute plane equations after moving vertices.
+	b.CalcPlaneEquations()
+}
+
+// facesCoplanar returns true if fA and fB lie on the same plane
+// (parallel normals, same signed distance for all fB vertices).
+func facesCoplanar(fA, fB *base.Face) bool {
+	// Check normals are parallel (dot product ≈ ±1).
+	dot := fA.Normal.Dot(fB.Normal)
+	if dot < 0.999 && dot > -0.999 {
+		return false
+	}
+	// Check every vertex of fB lies on fA's plane.
+	he := fB.GetFirstHe()
+	if he == nil {
+		return false
+	}
+	start := he
+	for {
+		d := fA.GetDistance(he.Vertex.Loc)
+		if base.FloatCompare(d) != 0 {
+			return false
+		}
+		he = he.Next
+		if he == start {
+			break
+		}
+	}
+	return true
+}
+
 func Union(a, b *base.Solid) (*base.Solid, bool) {
 	return BoolOp(a, b, base.BoolUnion)
 }
@@ -385,6 +521,46 @@ func Intersection(a, b *base.Solid) (*base.Solid, bool) {
 
 func Difference(a, b *base.Solid) (*base.Solid, bool) {
 	return BoolOp(a, b, base.BoolDifference)
+}
+
+// BoolOpResult holds the result of a boolean operation with metadata.
+type BoolOpResult struct {
+	Solid         *base.Solid
+	Ok            bool
+	UsedLastDitch bool
+}
+
+// BoolOpEx is like BoolOp but returns additional metadata about the operation.
+func BoolOpEx(a, b *base.Solid, op int) BoolOpResult {
+	res, ok := BoolOp(a, b, op)
+	return BoolOpResult{Solid: res, Ok: ok, UsedLastDitch: lastDitchUsed}
+}
+
+// ChainBoolOpEx applies a boolean operation across a slice of solids left-to-right:
+// solids[0] op solids[1] → result, result op solids[2] → result, etc.
+// Returns the accumulated result. Requires at least 2 solids.
+func ChainBoolOpEx(solids []*base.Solid, op int) BoolOpResult {
+	if len(solids) < 2 {
+		if len(solids) == 1 {
+			return BoolOpResult{Solid: solids[0], Ok: true}
+		}
+		return BoolOpResult{}
+	}
+
+	anyLastDitch := false
+	acc := solids[0]
+	for i := 1; i < len(solids); i++ {
+		r := BoolOpEx(acc, solids[i], op)
+		if !r.Ok || r.Solid == nil {
+			return BoolOpResult{Solid: nil, Ok: false, UsedLastDitch: anyLastDitch || r.UsedLastDitch}
+		}
+		if r.UsedLastDitch {
+			anyLastDitch = true
+		}
+		acc = r.Solid
+		acc.CalcPlaneEquations()
+	}
+	return BoolOpResult{Solid: acc, Ok: true, UsedLastDitch: anyLastDitch}
 }
 
 func makeRing(f *base.Face, v vec.SFVec3f) *base.Edge {

@@ -486,18 +486,7 @@ func setField(n node.Node, field string, val any) {
 			}
 		}
 	case node.IsActiveStr:
-		// TouchSensor.isActive routed to a Material → highlight / restore.
-		if m, ok := n.(*node.Material); ok {
-			if active, ok := val.(bool); ok {
-				if active {
-					m.SavedDiffuseColor = m.DiffuseColor
-					m.DiffuseColor = vec.SFColor{R: 1, G: 0, B: 0, A: 1}
-				} else if m.SavedDiffuseColor.A > 0 {
-					m.DiffuseColor = m.SavedDiffuseColor
-					m.SavedDiffuseColor = vec.SFColor{}
-				}
-			}
-		}
+		// TouchSensor.isActive — no special Material handling needed.
 	case node.DiffuseColorStr, node.SetDiffuseColorStr:
 		if m, ok := n.(*node.Material); ok {
 			if v, ok := val.(vec.SFColor); ok {

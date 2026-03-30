@@ -119,22 +119,24 @@ func MakeSphere(radius float64, latSegs, lonSegs int, color vec.SFColor) *base.S
 		return nil
 	}
 
-	southPole := vec.SFVec3f{X: -radius, Y: 0, Z: 0}
-	s, _, _ := euler.Mvfs(southPole, color)
+	// Build meridian from north pole to south pole so the rotational sweep
+	// around X produces outward-facing normals.
+	northPole := vec.SFVec3f{X: radius, Y: 0, Z: 0}
+	s, _, _ := euler.Mvfs(northPole, color)
 
 	prev := s.Verts
 	for i := 1; i < latSegs; i++ {
 		a := float64(i) * math.Pi / float64(latSegs)
 		loc := vec.SFVec3f{
-			X: -radius * math.Cos(a),
+			X: radius * math.Cos(a),
 			Y: radius * math.Sin(a),
 			Z: 0,
 		}
 		nv, _, _ := euler.Lmev(prev.He, loc)
 		prev = nv
 	}
-	northPole := vec.SFVec3f{X: radius, Y: 0, Z: 0}
-	_, _, _ = euler.Lmev(prev.He, northPole)
+	southPole := vec.SFVec3f{X: -radius, Y: 0, Z: 0}
+	_, _, _ = euler.Lmev(prev.He, southPole)
 
 	RotationalSweep(s, lonSegs)
 	s.CalcPlaneEquations()

@@ -145,13 +145,12 @@ type Appearance struct {
 // Material defines surface shading properties.
 type Material struct {
 	BaseNode
-	AmbientIntensity  float64
-	DiffuseColor      vec.SFColor
-	EmissiveColor     vec.SFColor
-	Shininess         float64
-	SpecularColor     vec.SFColor
-	Transparency      float64
-	SavedDiffuseColor vec.SFColor // stash for highlight/restore via isActive route
+	AmbientIntensity float64
+	DiffuseColor     vec.SFColor
+	EmissiveColor    vec.SFColor
+	Shininess        float64
+	SpecularColor    vec.SFColor
+	Transparency     float64
 }
 
 // NewMaterial creates a material with VRML97 defaults.

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/g3n/engine/app"
 	"github.com/g3n/engine/camera"
@@ -41,6 +42,9 @@ import (
 var (
 	yellow    = vec.SFColor{R: 1.0, G: 0.9, B: 0.2, A: 1}
 	lightBlue = vec.SFColor{R: 0.4, G: 0.6, B: 1.0, A: 1}
+	selRed    = vec.SFColor{R: 1, G: 0, B: 0, A: 1}
+	selPurple = vec.SFColor{R: 0.6, G: 0, B: 0.8, A: 1}
+	selPink   = vec.SFColor{R: 1, G: 0.4, B: 0.7, A: 1}
 )
 
 type boolCase struct {
@@ -86,6 +90,11 @@ var boolCaseMap = map[string]*boolCase{
 			boolDoTranslate(s, -0.25, -0.25, -0.25)
 			return s
 		},
+	},
+	"sphere_cube_same_size": {
+		name:  "sphere_cube_same_size",
+		makeA: func() *base.Solid { return primitives.MakeCube(1.0, yellow) },
+		makeB: func() *base.Solid { return primitives.MakeSphere(1.0, 8, 16, lightBlue) },
 	},
 }
 
@@ -165,21 +174,32 @@ type viewerState struct {
 	browser *browser.Browser
 	picker  *traverser.Picker
 
-	// Bool demo state
-	currentCase  *boolCase     // selected case (nil = none)
-	solidA       *base.Solid   // current A solid
-	solidB       *base.Solid   // current B solid
-	meshANode    *core.Node    // g3n node for A mesh
-	meshBNode    *core.Node    // g3n node for B mesh
-	resultNodes  []*core.Node  // g3n nodes for bool results
-	resultSolids []*base.Solid // result solids (for export)
-	resultNames  []string      // result operation names
-	resultSpan   float64       // offset for result positioning
+	// Node map — links VRML scene graph to g3n for rendering sync
+	nodeMap *converter.NodeMap
 
-	// Pick highlighting via TouchSensor + Route
-	pickTargets  []pickTarget
-	pickRoutes   []*node.Route
-	pickedSensor *node.TouchSensor // active sensor during mouse-down
+	// Bool demo state
+	currentCase  *boolCase         // selected case (nil = none)
+	solidA       *base.Solid       // current A solid
+	solidB       *base.Solid       // current B solid
+	meshANode    *core.Node        // g3n node for A mesh
+	meshBNode    *core.Node        // g3n node for B mesh
+	xformA       *node.Transform   // VRML Transform for A mesh
+	xformB       *node.Transform   // VRML Transform for B mesh
+	resultNodes  []*core.Node      // g3n nodes for bool results
+	resultXforms []*node.Transform // VRML Transforms for bool results
+	resultSolids []*base.Solid     // result solids (for export)
+	resultNames  []string          // result operation names
+	resultSpan   float64           // offset for result positioning
+
+	// Pick selection (persistent until deselected)
+	pickTargets    []pickTarget
+	pickRoutes     []*node.Route
+	selectedPick   *pickTarget // currently selected solid (nil = none)
+	selectionColor vec.SFColor // color applied to selected solid
+
+	// Cursor tracking for red-selection rotation
+	lastCursorX float64
+	lastCursorY float64
 
 	// Wireframe: saved original materials keyed by mesh pointer
 	savedMaterials map[*graphic.Mesh][]material.IMaterial
@@ -197,6 +217,7 @@ func setupMenuBar(vs *viewerState) *gui.Menu {
 	mb.AddMenu("File", buildFileMenu(vs))
 	mb.AddMenu("View", buildViewMenu(vs))
 	mb.AddMenu("Bool", buildBoolMenu(vs))
+	mb.AddMenu("Primitives", buildPrimitivesMenu(vs))
 	mb.AddMenu("Debug", buildDebugMenu(vs))
 
 	return mb
@@ -231,19 +252,35 @@ func updateWindowTitle(vs *viewerState) {
 	}
 }
 
-func restoreLastCase(vs *viewerState) {
-	s := loadSettings()
-	vs.wireframe = s.Wireframe
-	vs.axesVisible = s.AxesVisible
-	vs.lastSaveDir = s.LastSaveDir
-	vs.axes.SetVisible(vs.axesVisible)
-	if s.LastCase != "" {
-		if bc, ok := boolCaseMap[s.LastCase]; ok {
-			selectBoolCase(vs, bc)
+// handleCmdShortcut processes Cmd+key shortcuts directly from the window
+// key-down handler. Bool cases (Cmd+1-5) and bool operations (Cmd+U/I/D)
+// are handled by the menu SetShortcut mechanism — do NOT duplicate them here.
+func handleCmdShortcut(vs *viewerState, kev *window.KeyEvent) {
+	switch kev.Key {
+	case window.KeyW:
+		vs.wireframe = !vs.wireframe
+		toggleWireframe(vs, vs.wireframe)
+		persistSettings(vs)
+	case window.KeyA:
+		vs.axesVisible = !vs.axesVisible
+		vs.axes.SetVisible(vs.axesVisible)
+		persistSettings(vs)
+	case window.KeyR:
+		resetCamera(vs)
+	case window.KeyO:
+		go openFileDialog(vs)
+	case window.KeyS:
+		if kev.Mods&window.ModShift != 0 {
+			go exportScene(vs)
 		}
-	}
-	if vs.wireframe {
-		toggleWireframe(vs, true)
+	case window.KeyE:
+		showEulerStats(vs)
+	case window.KeyN:
+		toggleNormals(vs)
+	case window.KeyH:
+		showHalfEdgeInfo(vs)
+	case window.KeyQ:
+		os.Exit(0)
 	}
 }
 
@@ -498,25 +535,18 @@ func restoreMaterialsRecursive(vs *viewerState, n core.INode) {
 
 // ────────────────────────── Pick highlighting ──────────────────────────
 
-// pickTarget pairs a g3n node with its VRML TouchSensor/Material for pick-highlighting.
+// pickTarget pairs a g3n node with its VRML TouchSensor/Material for pick-selection.
 type pickTarget struct {
-	gNode  *core.Node
-	sensor *node.TouchSensor
-	mat    *node.Material
+	gNode     *core.Node
+	sensor    *node.TouchSensor
+	mat       *node.Material
+	vrmlXform *node.Transform    // VRML Transform wrapping this mesh (owns rotation/translation/scale)
+	origColor vec.SFColor        // color when unselected
+	makeFn    func() *base.Solid // factory to produce a fresh copy of the underlying solid
 }
 
-// setupPickSensors creates VRML TouchSensors and Routes so that clicking a
-// bool-demo solid highlights it red while the mouse button is held.
-func setupPickSensors(vs *viewerState) {
-	if vs.browser == nil {
-		return
-	}
-	addPickTarget(vs, vs.meshANode, yellow)
-	addPickTarget(vs, vs.meshBNode, lightBlue)
-}
-
-// addPickTarget creates a TouchSensor + Material + Route for a mesh node.
-func addPickTarget(vs *viewerState, meshNode *core.Node, color vec.SFColor) {
+// addPickTarget creates a TouchSensor + Material for a mesh node (no routes needed).
+func addPickTarget(vs *viewerState, meshNode *core.Node, xform *node.Transform, color vec.SFColor, makeFn func() *base.Solid) {
 	if meshNode == nil {
 		return
 	}
@@ -524,10 +554,7 @@ func addPickTarget(vs *viewerState, meshNode *core.Node, color vec.SFColor) {
 	mat := &node.Material{DiffuseColor: color}
 	tagMeshChildren(meshNode, ts)
 
-	r := node.NewRoute(ts, node.IsActiveStr, mat, node.IsActiveStr)
-	vs.pickTargets = append(vs.pickTargets, pickTarget{gNode: meshNode, sensor: ts, mat: mat})
-	vs.pickRoutes = append(vs.pickRoutes, r)
-	vs.browser.Routes = append(vs.browser.Routes, r)
+	vs.pickTargets = append(vs.pickTargets, pickTarget{gNode: meshNode, sensor: ts, mat: mat, vrmlXform: xform, origColor: color, makeFn: makeFn})
 }
 
 // tagMeshChildren sets UserData on each graphic.Mesh child of parent so the
@@ -544,7 +571,7 @@ func tagMeshChildren(parent *core.Node, sensor *node.TouchSensor) {
 	}
 }
 
-// clearPickSensors removes pick-related routes and sensors from the viewer.
+// clearPickSensors removes pick-related sensors from the viewer.
 func clearPickSensors(vs *viewerState) {
 	if vs.browser != nil && len(vs.pickRoutes) > 0 {
 		rm := make(map[*node.Route]bool, len(vs.pickRoutes))
@@ -561,7 +588,158 @@ func clearPickSensors(vs *viewerState) {
 	}
 	vs.pickRoutes = nil
 	vs.pickTargets = nil
-	vs.pickedSensor = nil
+	vs.selectedPick = nil
+	vs.selectionColor = vec.SFColor{}
+}
+
+// deselectAll clears the current pick selection, restoring the original color.
+func deselectAll(vs *viewerState) {
+	if vs.selectedPick != nil {
+		vs.selectedPick.mat.DiffuseColor = vs.selectedPick.origColor
+		vs.selectedPick = nil
+		vs.selectionColor = vec.SFColor{}
+		vs.oc.SetEnabled(camera.OrbitAll)
+	}
+}
+
+// deleteSelected removes the currently selected solid from the scene.
+func deleteSelected(vs *viewerState) {
+	sel := vs.selectedPick
+	if sel == nil {
+		return
+	}
+
+	// Remove from scene
+	gn := sel.gNode
+	vs.scene.Remove(gn)
+
+	// Unregister its VRML Transform from the nodeMap
+	if sel.vrmlXform != nil {
+		delete(vs.nodeMap.Transforms, sel.vrmlXform)
+	}
+
+	// Clear viewerState references if this is mesh A or B
+	if gn == vs.meshANode {
+		vs.meshANode = nil
+		vs.xformA = nil
+		vs.solidA = nil
+	}
+	if gn == vs.meshBNode {
+		vs.meshBNode = nil
+		vs.xformB = nil
+		vs.solidB = nil
+	}
+
+	// Remove from result lists
+	for i, rn := range vs.resultNodes {
+		if rn == gn {
+			vs.resultNodes = append(vs.resultNodes[:i], vs.resultNodes[i+1:]...)
+			vs.resultXforms = append(vs.resultXforms[:i], vs.resultXforms[i+1:]...)
+			vs.resultSolids = append(vs.resultSolids[:i], vs.resultSolids[i+1:]...)
+			vs.resultNames = append(vs.resultNames[:i], vs.resultNames[i+1:]...)
+			break
+		}
+	}
+
+	// Remove from pickTargets
+	for i, pt := range vs.pickTargets {
+		if pt.gNode == gn {
+			vs.pickTargets = append(vs.pickTargets[:i], vs.pickTargets[i+1:]...)
+			break
+		}
+	}
+
+	// Clear selection state
+	vs.selectedPick = nil
+	vs.selectionColor = vec.SFColor{}
+	vs.oc.SetEnabled(camera.OrbitAll)
+}
+
+// selectPickTarget toggles selection on the pick target matching the given
+// sensor. If the target is already selected with the same color, it is
+// deselected (restored to its original color). Otherwise any previous
+// selection is deselected first, then the new target is selected.
+func selectPickTarget(vs *viewerState, ts *node.TouchSensor, color vec.SFColor) {
+	// Find which target was clicked.
+	var clicked *pickTarget
+	for i := range vs.pickTargets {
+		if vs.pickTargets[i].sensor == ts {
+			clicked = &vs.pickTargets[i]
+			break
+		}
+	}
+	if clicked == nil {
+		return
+	}
+
+	// If the same target is already selected (any color), deselect.
+	if vs.selectedPick == clicked {
+		deselectAll(vs)
+		return
+	}
+
+	// Deselect any previous selection.
+	deselectAll(vs)
+
+	// Select the new target.
+	clicked.mat.DiffuseColor = color
+	vs.selectedPick = clicked
+	vs.selectionColor = color
+
+	// Disable orbit rotation so mouse drag manipulates the solid, not the scene.
+	vs.oc.SetEnabled(camera.OrbitZoom | camera.OrbitKeys)
+}
+
+// rotateSelectedSolid rotates the red-selected solid around its center
+// based on mouse movement deltas (in screen pixels).
+func rotateSelectedSolid(vs *viewerState, dx, dy float64) {
+	if vs.selectedPick == nil || vs.selectedPick.vrmlXform == nil {
+		return
+	}
+	xf := vs.selectedPick.vrmlXform
+	const sensitivity = 0.005 // radians per pixel
+	// Horizontal mouse → rotate around Y axis; vertical → rotate around X axis.
+	cur := xf.Rotation
+	if dx != 0 {
+		deltaY := vec.NewRotation(0, 1, 0, dx*sensitivity)
+		cur = vec.ComposeRotations(cur, deltaY)
+	}
+	if dy != 0 {
+		deltaX := vec.NewRotation(1, 0, 0, dy*sensitivity)
+		cur = vec.ComposeRotations(cur, deltaX)
+	}
+	xf.Rotation = cur
+	// UpdateDynamic() in the render loop will sync this to g3n.
+}
+
+// translateSelectedSolid moves the purple-selected solid in the XY plane
+// based on mouse movement deltas (in screen pixels).
+func translateSelectedSolid(vs *viewerState, dx, dy float64) {
+	if vs.selectedPick == nil || vs.selectedPick.vrmlXform == nil {
+		return
+	}
+	xf := vs.selectedPick.vrmlXform
+	const sensitivity = 0.01 // world units per pixel
+	xf.Translation.X += dx * sensitivity
+	xf.Translation.Y -= dy * sensitivity // screen Y is inverted
+}
+
+// scaleSelectedSolid scales the pink-selected solid uniformly based on
+// vertical mouse movement (drag up = bigger, drag down = smaller).
+func scaleSelectedSolid(vs *viewerState, dx, dy float64) {
+	if vs.selectedPick == nil || vs.selectedPick.vrmlXform == nil {
+		return
+	}
+	xf := vs.selectedPick.vrmlXform
+	const sensitivity = 0.005 // scale factor per pixel
+	// Vertical drag: up (negative dy) grows, down shrinks. Also use horizontal.
+	factor := 1.0 - dy*sensitivity + dx*sensitivity
+	if factor < 0.1 {
+		factor = 0.1
+	}
+	xf.Scale.X *= factor
+	xf.Scale.Y *= factor
+	xf.Scale.Z *= factor
 }
 
 // syncPickColors propagates VRML Material.DiffuseColor (set by routes) to
@@ -613,8 +791,8 @@ func buildBoolMenu(vs *viewerState) *gui.Menu {
 	m := gui.NewMenu()
 
 	// Add the test cases with Cmd+1, Cmd+2, etc.
-	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist", "sphere_vs_cube"}
-	caseKeys := []window.Key{window.Key1, window.Key2, window.Key3, window.Key4}
+	caseOrder := []string{"same_size_partial_overlap", "same_size_edge_on_edge", "same_size_slight_twist", "sphere_vs_cube", "sphere_cube_same_size"}
+	caseKeys := []window.Key{window.Key1, window.Key2, window.Key3, window.Key4, window.Key5}
 	for i, name := range caseOrder {
 		bc := boolCaseMap[name]
 		capturedCase := bc
@@ -648,8 +826,77 @@ func buildBoolMenu(vs *viewerState) *gui.Menu {
 	return m
 }
 
-// selectBoolCase builds A and B solids for the chosen case and displays them.
+// buildPrimitivesMenu creates a menu to display individual primitives.
+func buildPrimitivesMenu(vs *viewerState) *gui.Menu {
+	m := gui.NewMenu()
+
+	type primDef struct {
+		name string
+		make func() *base.Solid
+	}
+	prims := []primDef{
+		{"Cube", func() *base.Solid { return primitives.MakeCube(1.0, yellow) }},
+		{"Sphere", func() *base.Solid { return primitives.MakeSphere(1.0, 8, 16, yellow) }},
+		{"Cylinder", func() *base.Solid { return primitives.MakeCylinder(0.5, 2.0, 16, yellow) }},
+		{"Prism", func() *base.Solid { return primitives.MakePrism(2.0, yellow) }},
+		{"Torus", func() *base.Solid { return primitives.MakeTorus(1.0, 0.3, 16, 8, yellow) }},
+		{"Circle", func() *base.Solid { return primitives.MakeCircle(0, 0, 1.0, 0.2, 16, yellow) }},
+	}
+
+	for _, p := range prims {
+		pd := p
+		opt := m.AddOption(pd.name)
+		opt.Subscribe(gui.OnClick, func(string, interface{}) {
+			showPrimitive(vs, pd.name, pd.make)
+		})
+	}
+
+	return m
+}
+
+// showPrimitive adds a single primitive solid to the scene.
+var lastPrimitiveTime time.Time
+
+func showPrimitive(vs *viewerState, name string, makeFn func() *base.Solid) {
+	// Debounce: g3n SetShortcut fires the callback twice per keystroke.
+	if time.Since(lastPrimitiveTime) < 200*time.Millisecond {
+		return
+	}
+	lastPrimitiveTime = time.Now()
+
+	s := makeFn()
+	if s == nil {
+		return
+	}
+	s.CalcPlaneEquations()
+
+	mesh := solidToMesh(s, &math32.Color{R: 1, G: 0.9, B: 0.2})
+	if mesh == nil {
+		return
+	}
+
+	xf := node.NewTransform()
+	gn := core.NewNode()
+	gn.Add(mesh)
+	vs.scene.Add(gn)
+	vs.nodeMap.Transforms[xf] = gn
+	addPickTarget(vs, gn, xf, yellow, makeFn)
+
+	if vs.wireframe {
+		applyWireframeRecursive(vs, gn)
+	}
+}
+
+// selectBoolCase builds A and B solids for the chosen case and adds them to the scene.
+var lastBoolCaseTime time.Time
+
 func selectBoolCase(vs *viewerState, bc *boolCase) {
+	// Debounce: g3n SetShortcut fires the callback twice per keystroke.
+	if time.Since(lastBoolCaseTime) < 200*time.Millisecond {
+		return
+	}
+	lastBoolCaseTime = time.Now()
+
 	vs.currentCase = bc
 
 	// Build fresh solids
@@ -675,42 +922,26 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 	}
 	vs.resultSpan = span*0.5 + span*0.8
 
-	// Remove previous bool meshes
-	if vs.meshANode != nil {
-		vs.scene.Remove(vs.meshANode)
-		vs.meshANode = nil
-	}
-	if vs.meshBNode != nil {
-		vs.scene.Remove(vs.meshBNode)
-		vs.meshBNode = nil
-	}
-	for _, rn := range vs.resultNodes {
-		vs.scene.Remove(rn)
-	}
-	vs.resultNodes = nil
-	vs.resultSolids = nil
-	vs.resultNames = nil
-
-	// Remove old pick routes and sensors
-	clearPickSensors(vs)
-
-	// Add meshes for A (yellow) and B (blue)
+	// Add meshes for A (yellow) and B (blue), each wrapped in a VRML Transform
 	meshA := solidToMesh(vs.solidA, &math32.Color{R: 1, G: 0.9, B: 0.2})
 	meshB := solidToMesh(vs.solidB, &math32.Color{R: 0.4, G: 0.6, B: 1.0})
 
 	if meshA != nil {
+		vs.xformA = node.NewTransform()
 		vs.meshANode = core.NewNode()
 		vs.meshANode.Add(meshA)
 		vs.scene.Add(vs.meshANode)
+		vs.nodeMap.Transforms[vs.xformA] = vs.meshANode
+		addPickTarget(vs, vs.meshANode, vs.xformA, yellow, bc.makeA)
 	}
 	if meshB != nil {
+		vs.xformB = node.NewTransform()
 		vs.meshBNode = core.NewNode()
 		vs.meshBNode.Add(meshB)
 		vs.scene.Add(vs.meshBNode)
+		vs.nodeMap.Transforms[vs.xformB] = vs.meshBNode
+		addPickTarget(vs, vs.meshBNode, vs.xformB, lightBlue, bc.makeB)
 	}
-
-	// Set up TouchSensors and Routes for pick-highlighting
-	setupPickSensors(vs)
 
 	statsA := solidStatsStr(vs.solidA)
 	statsB := solidStatsStr(vs.solidB)
@@ -723,29 +954,66 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 	}
 }
 
-// runBoolOp runs a boolean operation on the current A and B and displays the result.
+// runBoolOp runs a boolean operation on all non-result solids in the scene.
+// Chains pairwise: solids[0] op solids[1] → result, result op solids[2] → …
+var lastBoolOpTime time.Time
+
 func runBoolOp(vs *viewerState, op int, name string) {
-	if vs.currentCase == nil {
-		fmt.Fprintf(os.Stderr, "Bool %s: no case selected\n", name)
+	// Debounce: g3n SetShortcut fires the callback twice per keystroke.
+	if time.Since(lastBoolOpTime) < 200*time.Millisecond {
+		return
+	}
+	lastBoolOpTime = time.Now()
+
+	// Build set of result nodes for fast lookup.
+	isResult := make(map[*core.Node]bool, len(vs.resultNodes))
+	for _, rn := range vs.resultNodes {
+		isResult[rn] = true
+	}
+
+	// Collect fresh solids from all non-result pick targets, applying transforms.
+	var solids []*base.Solid
+	for i := range vs.pickTargets {
+		pt := &vs.pickTargets[i]
+		if isResult[pt.gNode] || pt.makeFn == nil {
+			continue
+		}
+		s := pt.makeFn()
+		if s == nil {
+			continue
+		}
+		s.CalcPlaneEquations()
+		if pt.vrmlXform != nil {
+			m := pt.vrmlXform.GetLocalMatrix()
+			if m != vec.Identity() {
+				s.TransformGeometry(m)
+				s.CalcPlaneEquations()
+			}
+		}
+		solids = append(solids, s)
+	}
+
+	if len(solids) < 2 {
+		fmt.Fprintf(os.Stderr, "Bool %s: need at least 2 non-result solids in scene (have %d)\n", name, len(solids))
 		return
 	}
 
-	// Build fresh solids from the case definition
-	a := vs.currentCase.makeA()
-	b := vs.currentCase.makeB()
-
-	result, ok := boolop.BoolOp(a, b, op)
-	if !ok || result == nil {
+	fmt.Fprintf(os.Stderr, "Bool %s: chaining %d solids\n", name, len(solids))
+	boolRes := boolop.ChainBoolOpEx(solids, op)
+	if !boolRes.Ok || boolRes.Solid == nil {
 		fmt.Fprintf(os.Stderr, "Bool %s: operation failed or empty result\n", name)
 		return
 	}
 
+	result := boolRes.Solid
 	result.CalcPlaneEquations()
 
 	stats := solidStatsStr(result)
-	mn, mx := result.Extents()
-	fmt.Fprintf(os.Stderr, "Bool %s: %s, bbox [%.2f,%.2f,%.2f]-[%.2f,%.2f,%.2f]\n",
-		name, stats, mn.X, mn.Y, mn.Z, mx.X, mx.Y, mx.Z)
+	if boolRes.UsedLastDitch {
+		fmt.Fprintf(os.Stderr, "Bool %s: %s (LastDitch)\n", name, stats)
+	} else {
+		fmt.Fprintf(os.Stderr, "Bool %s: %s\n", name, stats)
+	}
 
 	errs := algorithms.VerifyDetailed(result)
 	if len(errs) > 0 {
@@ -753,30 +1021,46 @@ func runBoolOp(vs *viewerState, op int, name string) {
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "  %v\n", e)
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "Bool %s: valid!\n", name)
 	}
 
-	// Build g3n mesh from result solid and add to scene
-	mesh := solidToMesh(result, &math32.Color{R: 0.2, G: 0.8, B: 0.3})
+	// Build g3n mesh from result solid and add to scene — teal if LastDitch
+	var meshColor *math32.Color
+	var pickColor vec.SFColor
+	if boolRes.UsedLastDitch {
+		meshColor = &math32.Color{R: 0, G: 0.8, B: 0.8}
+		pickColor = vec.SFColor{R: 0, G: 0.8, B: 0.8, A: 1}
+	} else {
+		meshColor = &math32.Color{R: 0.2, G: 0.8, B: 0.3}
+		pickColor = vec.SFColor{R: 0.2, G: 0.8, B: 0.3, A: 1}
+	}
+	mesh := solidToMesh(result, meshColor)
 	if mesh == nil {
 		fmt.Fprintf(os.Stderr, "Bool %s: could not build mesh from result\n", name)
 		return
 	}
 
-	resultGroup := core.NewNode()
-	span := float32(vs.resultSpan)
+	// Position result via a VRML Transform (state lives in VRML, not g3n)
+	resultXform := node.NewTransform()
+	span := vs.resultSpan
+	if span == 0 {
+		span = 2.0
+	}
 	switch op {
 	case base.BoolUnion:
-		resultGroup.SetPosition(span, 0, 0)
+		resultXform.Translation = vec.SFVec3f{X: span, Y: 0, Z: 0}
 	case base.BoolIntersection:
-		resultGroup.SetPosition(0, span, 0)
+		resultXform.Translation = vec.SFVec3f{X: 0, Y: span, Z: 0}
 	case base.BoolDifference:
-		resultGroup.SetPosition(-span, 0, 0)
+		resultXform.Translation = vec.SFVec3f{X: -span, Y: 0, Z: 0}
 	}
+
+	resultGroup := core.NewNode()
 	resultGroup.Add(mesh)
 	vs.scene.Add(resultGroup)
+	vs.nodeMap.Transforms[resultXform] = resultGroup
+
 	vs.resultNodes = append(vs.resultNodes, resultGroup)
+	vs.resultXforms = append(vs.resultXforms, resultXform)
 	vs.resultSolids = append(vs.resultSolids, result)
 	vs.resultNames = append(vs.resultNames, name)
 
@@ -785,11 +1069,10 @@ func runBoolOp(vs *viewerState, op int, name string) {
 	}
 
 	// Make result mesh pickable
-	green := vec.SFColor{R: 0.2, G: 0.8, B: 0.3, A: 1}
-	addPickTarget(vs, resultGroup, green)
+	addPickTarget(vs, resultGroup, resultXform, pickColor, nil)
 
-	pos := resultGroup.Position()
-	fmt.Fprintf(os.Stderr, "Bool %s: result displayed at (%.1f, %.1f, %.1f)\n", name, pos.X, pos.Y, pos.Z)
+	fmt.Fprintf(os.Stderr, "Bool %s: result at (%.1f, %.1f, %.1f)\n",
+		name, resultXform.Translation.X, resultXform.Translation.Y, resultXform.Translation.Z)
 }
 
 // solidToMesh converts a B-rep Solid into a g3n Mesh for rendering.
@@ -896,14 +1179,24 @@ func clearGeometry(vs *viewerState) {
 	// Clear state
 	vs.meshANode = nil
 	vs.meshBNode = nil
+	if vs.xformA != nil {
+		delete(vs.nodeMap.Transforms, vs.xformA)
+		vs.xformA = nil
+	}
+	if vs.xformB != nil {
+		delete(vs.nodeMap.Transforms, vs.xformB)
+		vs.xformB = nil
+	}
+	for _, rx := range vs.resultXforms {
+		delete(vs.nodeMap.Transforms, rx)
+	}
 	vs.resultNodes = nil
+	vs.resultXforms = nil
 	vs.solidA = nil
 	vs.solidB = nil
 	vs.normalsNode = nil
 	vs.normalsShown = false
 	clearPickSensors(vs)
-
-	fmt.Fprintf(os.Stderr, "Cleared %d geometry nodes from scene\n", len(toRemove))
 }
 
 // ────────────────────────── Debug ──────────────────────────
@@ -1081,7 +1374,7 @@ func loadScene(vs *viewerState, path string) {
 	vs.scene.Add(vs.axes)
 
 	// Convert and add new scene content
-	converter.Convert(vrmlNodes, vs.scene, baseDir)
+	vs.nodeMap = converter.Convert(vrmlNodes, vs.scene, baseDir)
 
 	vs.vrmlNodes = vrmlNodes
 	vs.wrlPath = path

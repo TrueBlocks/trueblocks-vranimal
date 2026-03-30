@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/g3n/engine/app"
@@ -30,50 +29,48 @@ import (
 
 func main() {
 	var wrlPath string
+	var vrmlNodes []node.Node
+	var baseDir string
+	var parsedRoutes []*node.Route
+
 	if len(os.Args) >= 2 {
 		wrlPath = os.Args[1]
-	} else {
-		// No file specified — find the most recently modified .wrl in examples/bool_demos/
-		wrlPath = findMostRecentBoolDemo()
-		if wrlPath == "" {
-			fmt.Fprintf(os.Stderr, "Usage: %s [file.wrl]\n", os.Args[0])
-			fmt.Fprintf(os.Stderr, "\nNo file specified and no bool demo files found in examples/bool_demos/\n")
+		baseDir = filepath.Dir(wrlPath)
+
+		// Parse the VRML file
+		f, err := os.Open(filepath.Clean(wrlPath))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot open %s: %v\n", wrlPath, err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "No file specified — loading most recent: %s\n", wrlPath)
-	}
-	baseDir := filepath.Dir(wrlPath)
 
-	// Parse the VRML file
-	f, err := os.Open(filepath.Clean(wrlPath))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: cannot open %s: %v\n", wrlPath, err)
-		os.Exit(1)
-	}
-
-	p := parser.NewParser(f)
-	p.SetBaseDir(baseDir)
-	vrmlNodes := p.Parse()
-	if err := f.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "close error: %v\n", err)
-	}
-
-	if errs := p.Errors(); len(errs) > 0 {
-		fmt.Fprintf(os.Stderr, "Parse warnings:\n")
-		for _, e := range errs {
-			fmt.Fprintf(os.Stderr, "  %s\n", e)
+		p := parser.NewParser(f)
+		p.SetBaseDir(baseDir)
+		vrmlNodes = p.Parse()
+		parsedRoutes = p.GetRoutes()
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
 		}
+
+		if errs := p.Errors(); len(errs) > 0 {
+			fmt.Fprintf(os.Stderr, "Parse warnings:\n")
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "  %s\n", e)
+			}
+		}
+
+		if len(vrmlNodes) == 0 {
+			fmt.Fprintf(os.Stderr, "Error: no nodes parsed from %s\n", wrlPath)
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "Parsed %d top-level nodes from %s\n", len(vrmlNodes), wrlPath)
+
+		// Drop pre-computed result transforms from bool_demo files (keep only A and B)
+		vrmlNodes = dropResultTransforms(vrmlNodes)
+	} else {
+		fmt.Fprintf(os.Stderr, "Starting with empty scene\n")
 	}
-
-	if len(vrmlNodes) == 0 {
-		fmt.Fprintf(os.Stderr, "Error: no nodes parsed from %s\n", wrlPath)
-		os.Exit(1)
-	}
-
-	fmt.Fprintf(os.Stderr, "Parsed %d top-level nodes from %s\n", len(vrmlNodes), wrlPath)
-
-	// Drop pre-computed result transforms from bool_demo files (keep only A and B)
-	vrmlNodes = dropResultTransforms(vrmlNodes)
 
 	// Create g3n application
 	a := app.App()
@@ -98,7 +95,7 @@ func main() {
 	// Set up browser event engine
 	br := browser.NewBrowser()
 	br.Children = vrmlNodes
-	br.Routes = p.GetRoutes()
+	br.Routes = parsedRoutes
 	br.CollectTimeSensors()
 
 	// Set up action traverser for sensors, LOD, etc.
@@ -174,18 +171,25 @@ func main() {
 	var vs *viewerState
 
 	// Always subscribe to mouse events — bool demo meshes get TouchSensors dynamically.
+	// Use pendingPick to defer pick-handling to the render loop, avoiding
+	// interference with g3n's internal GUI manager during event dispatch.
+	type pendingPickEvent struct {
+		x, y    float64
+		action  traverser.PointerAction
+		mods    window.ModifierKey
+		simTime float64
+	}
+	var pendingPick *pendingPickEvent
+
 	a.Subscribe(window.OnMouseDown, func(evname string, ev interface{}) {
 		mev := ev.(*window.MouseEvent)
 		if mev.Button != window.MouseButtonLeft {
 			return
 		}
-		picker.SimTime = br.SimTime()
-		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerDown)
-		// Don't let the picker stay captured for TouchSensors — that blocks
-		// keyboard shortcuts and orbit control during the hold.
-		// We release the sensor ourselves on mouse-up instead.
-		if ts := picker.StealTouchCapture(); ts != nil && vs != nil {
-			vs.pickedSensor = ts
+		pendingPick = &pendingPickEvent{
+			x: float64(mev.Xpos), y: float64(mev.Ypos),
+			action: traverser.PointerDown, mods: mev.Mods,
+			simTime: br.SimTime(),
 		}
 	})
 	a.Subscribe(window.OnMouseUp, func(evname string, ev interface{}) {
@@ -193,23 +197,37 @@ func main() {
 		if mev.Button != window.MouseButtonLeft {
 			return
 		}
-		// Release any touch sensor we stole from the picker.
-		if vs != nil && vs.pickedSensor != nil {
-			vs.pickedSensor.IsActive = false
-			vs.pickedSensor.IsOver = false
-			vs.pickedSensor = nil
-		}
 		picker.SimTime = br.SimTime()
 		picker.HandlePointer(float64(mev.Xpos), float64(mev.Ypos), traverser.PointerUp)
 	})
 	a.Subscribe(window.OnCursor, func(evname string, ev interface{}) {
 		cev := ev.(*window.CursorEvent)
+		cx, cy := float64(cev.Xpos), float64(cev.Ypos)
+		if vs != nil && vs.selectedPick != nil {
+			dx := cx - vs.lastCursorX
+			dy := cy - vs.lastCursorY
+			switch vs.selectionColor {
+			case selRed:
+				rotateSelectedSolid(vs, dx, dy)
+			case selPurple:
+				translateSelectedSolid(vs, dx, dy)
+			case selPink:
+				scaleSelectedSolid(vs, dx, dy)
+			}
+		}
+		if vs != nil {
+			vs.lastCursorX = cx
+			vs.lastCursorY = cy
+		}
 		picker.SimTime = br.SimTime()
-		picker.HandlePointer(float64(cev.Xpos), float64(cev.Ypos), traverser.PointerMove)
+		picker.HandlePointer(cx, cy, traverser.PointerMove)
 	})
 
 	// Add default lighting if no lights in the scene
-	headlight := nav == nil || nav.Headlight // default is true per VRML97
+	headlight := true
+	if nav != nil {
+		headlight = nav.Headlight
+	}
 	if !hasLights(vrmlNodes) {
 		ambLight := light.NewAmbient(&math32.Color{R: 0.3, G: 0.3, B: 0.3}, 1.0)
 		scene.Add(ambLight)
@@ -245,6 +263,7 @@ func main() {
 		baseDir:     baseDir,
 		browser:     br,
 		picker:      picker,
+		nodeMap:     nodeMap,
 		pendingLoad: make(chan string, 1),
 	}
 	vs.reloadFn = func(path string) { loadScene(vs, path) }
@@ -252,8 +271,16 @@ func main() {
 	mb := setupMenuBar(vs)
 	scene.Add(mb)
 
-	// Restore persisted settings (wireframe, last bool case)
-	restoreLastCase(vs)
+	// Restore persisted visual settings (but do NOT load a bool case on startup)
+	if ss := loadSettings(); true {
+		vs.wireframe = ss.Wireframe
+		vs.axesVisible = ss.AxesVisible
+		vs.lastSaveDir = ss.LastSaveDir
+		vs.axes.SetVisible(vs.axesVisible)
+		if vs.wireframe {
+			toggleWireframe(vs, true)
+		}
+	}
 
 	// Background color
 	bg := converter.GetBackground(vrmlNodes)
@@ -282,12 +309,26 @@ func main() {
 		persistSettings(vs)
 	})
 
-	// Delete key clears all geometry from the scene
+	// Keyboard shortcuts — handle directly so they work before the menu
+	// has been opened (g3n menu shortcuts require first open).
 	a.Subscribe(window.OnKeyDown, func(evname string, ev interface{}) {
 		kev := ev.(*window.KeyEvent)
-		if kev.Key == window.KeyDelete || kev.Key == window.KeyBackspace {
-			clearGeometry(vs)
+		if kev.Key == window.KeyEscape {
+			deselectAll(vs)
+			return
 		}
+		if kev.Key == window.KeyDelete || kev.Key == window.KeyBackspace {
+			if vs.selectedPick != nil {
+				deleteSelected(vs)
+			} else {
+				clearGeometry(vs)
+			}
+			return
+		}
+		if kev.Mods&window.ModSuper == 0 {
+			return
+		}
+		handleCmdShortcut(vs, kev)
 	})
 
 	fmt.Fprintf(os.Stderr, "Viewer ready. Drag to rotate, scroll to zoom.\n")
@@ -301,6 +342,29 @@ func main() {
 		default:
 		}
 
+		// Process deferred pick (mouse-down deferred from event handler to
+		// avoid interfering with g3n's GUI manager during event dispatch).
+		if pp := pendingPick; pp != nil {
+			pendingPick = nil
+			// Determine selection color from modifier keys.
+			var hc vec.SFColor
+			switch {
+			case pp.mods&window.ModSuper != 0 && pp.mods&window.ModShift != 0:
+				hc = selPink
+			case pp.mods&window.ModSuper != 0:
+				hc = selPurple
+			default:
+				hc = selRed
+			}
+			picker.SimTime = pp.simTime
+			picker.HandlePointer(pp.x, pp.y, pp.action)
+			if ts := picker.StealTouchCapture(); ts != nil && vs != nil {
+				selectPickTarget(vs, ts, hc)
+			} else if vs != nil {
+				deselectAll(vs)
+			}
+		}
+
 		// Get camera position for action traverser
 		camPos := cam.Position()
 		viewerPos := vec.SFVec3f{X: float64(camPos.X), Y: float64(camPos.Y), Z: float64(camPos.Z)}
@@ -310,8 +374,8 @@ func main() {
 
 		// Process VRML events (TimeSensors, routes, interpolators)
 		br.Update(deltaTime)
-		nodeMap.CameraPos = camPos
-		nodeMap.UpdateDynamic()
+		vs.nodeMap.CameraPos = camPos
+		vs.nodeMap.UpdateDynamic()
 
 		// Sync pick-highlight colors from VRML Material to g3n meshes
 		syncPickColors(vs)
@@ -337,43 +401,4 @@ func hasLights(nodes []node.Node) bool {
 		}
 	}
 	return false
-}
-
-// findMostRecentBoolDemo returns the path to the most recently modified .wrl
-// file in examples/bool_demos/, or "" if none found.
-func findMostRecentBoolDemo() string {
-	candidates := []string{
-		"examples/bool_demos",
-		"trueblocks-vranimal/examples/bool_demos",
-	}
-	var dir string
-	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && info.IsDir() {
-			dir = c
-			break
-		}
-	}
-	if dir == "" {
-		return ""
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	var bestPath string
-	var bestTime time.Time
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".wrl") {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		if info.ModTime().After(bestTime) {
-			bestTime = info.ModTime()
-			bestPath = filepath.Join(dir, e.Name())
-		}
-	}
-	return bestPath
 }
