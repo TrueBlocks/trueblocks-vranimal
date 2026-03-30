@@ -37,18 +37,18 @@ func main() {
 		wrlPath = os.Args[1]
 		baseDir = filepath.Dir(wrlPath)
 
-		// Parse the VRML file
-		f, err := os.Open(filepath.Clean(wrlPath))
+		// Parse the VRML file (supports .wrl, .wrl.gz, .wrz)
+		r, closeFn, err := openWRL(wrlPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: cannot open %s: %v\n", wrlPath, err)
 			os.Exit(1)
 		}
 
-		p := parser.NewParser(f)
+		p := parser.NewParser(r)
 		p.SetBaseDir(baseDir)
 		vrmlNodes = p.Parse()
 		parsedRoutes = p.GetRoutes()
-		if err := f.Close(); err != nil {
+		if err := closeFn(); err != nil {
 			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
 		}
 
@@ -282,13 +282,19 @@ func main() {
 		}
 	}
 
-	// Background color
+	// Background color (sky gradient and skybox are handled by converter)
 	bg := converter.GetBackground(vrmlNodes)
 	if bg != nil && len(bg.SkyColor) > 0 {
 		c := bg.SkyColor[0]
 		a.Gls().ClearColor(float32(c.R), float32(c.G), float32(c.B), 1.0)
 	} else {
 		a.Gls().ClearColor(0.2, 0.2, 0.3, 1.0)
+	}
+
+	// Fog parameters (g3n does not have built-in fog; log for reference)
+	if fp := converter.GetFogParams(vrmlNodes); fp != nil {
+		fmt.Fprintf(os.Stderr, "Fog: color=(%.1f,%.1f,%.1f) range=%.1f exp=%v\n",
+			fp.Color.R, fp.Color.G, fp.Color.B, fp.VisibilityRange, fp.Exponential)
 	}
 
 	// Handle window resize — use framebuffer size for viewport (Retina/HiDPI)

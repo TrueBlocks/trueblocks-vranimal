@@ -425,6 +425,12 @@ func getField(n node.Node, field string) any {
 		if ps, ok := n.(*node.PlaneSensor); ok {
 			return ps.Translation
 		}
+	default:
+		if sc, ok := n.(*node.Script); ok && sc.Fields != nil {
+			if v, exists := sc.Fields[field]; exists {
+				return v
+			}
+		}
 	}
 	return nil
 }
@@ -532,6 +538,19 @@ func setField(n node.Node, field string, val any) {
 		if sw, ok := n.(*node.Switch); ok {
 			if v, ok := toInt32(val); ok {
 				sw.WhichChoice = v
+			}
+		}
+	default:
+		if sc, ok := n.(*node.Script); ok {
+			if sc.Fields == nil {
+				sc.Fields = make(map[string]any)
+			}
+			sc.Fields[field] = val
+			if sc.Handler != nil {
+				outputs := sc.Handler(field, val)
+				for k, v := range outputs {
+					sc.Fields[k] = v
+				}
 			}
 		}
 	}

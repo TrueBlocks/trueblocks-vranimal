@@ -30,9 +30,19 @@ func main() {
         os.Exit(1)
     }
 
-    nodes, err := parser.Parse(os.Args[1])
+    f, err := os.Open(os.Args[1])
     if err != nil {
         fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+    defer f.Close()
+
+    p := parser.NewParser(f)
+    nodes := p.Parse()
+    if errs := p.Errors(); len(errs) > 0 {
+        for _, e := range errs {
+            fmt.Fprintf(os.Stderr, "Parse error: %s\n", e)
+        }
         os.Exit(1)
     }
 
@@ -100,16 +110,20 @@ DEF GreenSphere Transform
 
 ## Step 4: Export Options
 
-The C++ WriteTraverser supported options like:
+The WriteTraverser (implemented in `pkg/writer`) supports:
 - Writing only non-default fields (smaller output)
 - Indentation control
 - DEF/USE preservation
 
-When the WriteTraverser is ported ([Issue #9](https://github.com/TrueBlocks/trueblocks-3d/issues/9)), the pretty printer can produce valid `.wrl` output that round-trips through parse → write.
+The `vrml-fmt` CLI tool wraps the writer for command-line pretty-printing:
+
+```bash
+vrml-fmt examples/test_scene.wrl
+```
 
 ## What You Learned
 
-- How to use `parser.Parse()` to load a `.wrl` file
+- How to use `parser.NewParser()` to load a `.wrl` file
 - The scene graph is a tree of `node.Node` values
 - Type assertions (`switch v := n.(type)`) access node-specific fields
 - Grouping nodes (Transform, Group) contain `Children` slices

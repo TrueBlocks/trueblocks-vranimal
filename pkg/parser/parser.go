@@ -66,6 +66,7 @@ type Lexer struct {
 	floatVal float64
 	strVal   string
 	peeked   bool
+	vrml1    bool // true when the header is "#VRML V1.0"
 }
 
 // NewLexer creates a lexer from an io.Reader.
@@ -164,12 +165,17 @@ func (l *Lexer) skipWhitespaceAndComments() {
 			continue
 		}
 		if ch == '#' {
+			var comment []byte
 			for {
 				c, err := l.readByte()
 				if err != nil || c == '\n' {
 					l.line++
 					break
 				}
+				comment = append(comment, c)
+			}
+			if strings.HasPrefix(string(comment), "VRML V1.0") {
+				l.vrml1 = true
 			}
 			continue
 		}
@@ -360,6 +366,9 @@ func (p *Parser) SetURLFetcher(f func(string) (io.ReadCloser, error)) { p.urlFet
 // Errors returns any parse errors encountered.
 func (p *Parser) Errors() []string { return p.errors }
 
+// IsVRML1 returns true if the parsed file had a VRML 1.0 header.
+func (p *Parser) IsVRML1() bool { return p.lex.vrml1 }
+
 func (p *Parser) errorf(format string, args ...any) {
 	msg := fmt.Sprintf("line %d: %s", p.lex.Line(), fmt.Sprintf(format, args...))
 	p.errors = append(p.errors, msg)
@@ -373,6 +382,9 @@ func (p *Parser) Parse() []node.Node {
 		if n != nil {
 			children = append(children, n)
 		}
+	}
+	if p.lex.vrml1 {
+		children = translateV1(children)
 	}
 	return children
 }
@@ -646,11 +658,26 @@ func (p *Parser) createNode(typeName string) node.Node {
 		return node.NewSphereSensor()
 	case "VisibilitySensor":
 		return node.NewVisibilitySensor()
+
+	// VRML 1.0 node mappings
+	case "Separator":
+		g := &node.Group{}
+		g.BboxSize = vec.SFVec3f{X: -1, Y: -1, Z: -1}
+		g.IsMaps = []string{v1SeparatorTag}
+		return g
+	case "Coordinate3":
+		return &node.Coordinate{}
+	case "PerspectiveCamera":
+		return node.NewViewpoint()
 	}
 	return nil
 }
 
 func (p *Parser) parseNodeBody(n node.Node, typeName string) {
+	if p.lex.vrml1 && isV1GroupType(typeName) {
+		p.parseV1GroupBody(n, typeName)
+		return
+	}
 	for p.lex.Peek() != TokCloseBrace && p.lex.Peek() != TokEOF {
 		tok := p.lex.Peek()
 		if tok == TokIdentifier {
@@ -874,6 +901,9 @@ func (p *Parser) parseMaterialField(m *node.Material, field string) {
 	switch field {
 	case "ambientIntensity":
 		m.AmbientIntensity = p.parseFloat()
+	case "ambientColor":
+		c := p.parseVec3f()
+		m.AmbientIntensity = (c.X + c.Y + c.Z) / 3.0
 	case "diffuseColor":
 		c := p.parseVec3f()
 		m.DiffuseColor = vec.NewColor(c.X, c.Y, c.Z)
@@ -1131,7 +1161,7 @@ func (p *Parser) parseViewpointField(vp *node.Viewpoint, field string) {
 	switch field {
 	case "description":
 		vp.Description = p.parseString()
-	case "fieldOfView":
+	case "fieldOfView", "heightAngle":
 		vp.FieldOfView = p.parseFloat()
 	case "jump":
 		vp.Jump = p.parseBool()
@@ -1139,6 +1169,8 @@ func (p *Parser) parseViewpointField(vp *node.Viewpoint, field string) {
 		vp.Orientation = p.parseRotation()
 	case "position":
 		vp.Position = p.parseVec3f()
+	case "focalDistance":
+		p.parseFloat() // V1.0 field — consume but ignore
 	default:
 		p.skipFieldValue()
 	}

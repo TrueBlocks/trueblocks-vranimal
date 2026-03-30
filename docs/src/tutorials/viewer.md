@@ -22,6 +22,7 @@ import (
 
     "github.com/g3n/engine/app"
     "github.com/g3n/engine/camera"
+    "github.com/g3n/engine/core"
     "github.com/g3n/engine/gls"
     "github.com/g3n/engine/light"
     "github.com/g3n/engine/math32"
@@ -35,7 +36,8 @@ func main() {
 
     // Convert VRML nodes to g3n scene objects
     a := app.App()
-    g3nScene := converter.Convert(scene)
+    g3nScene := core.NewNode()
+    converter.Convert(scene, g3nScene, ".")
 
     // Add lights
     l1 := light.NewDirectional(&math32.Color{1, 1, 1}, 0.8)
@@ -141,11 +143,11 @@ a.Run(func(rend *renderer.Renderer, deltaTime float64) {
 })
 ```
 
-The proper VRML way to animate is via TimeSensor → Interpolator → ROUTE connections. This will be supported when event routing is implemented ([Issue #13](https://github.com/TrueBlocks/trueblocks-3d/issues/13)).
+The proper VRML way to animate is via TimeSensor → Interpolator → ROUTE connections, which is fully supported by the browser's event routing system.
 
 ## What You Learned
 
 - Create VRML node trees programmatically in Go
-- Convert them to g3n with `converter.Convert()`
+- Convert them to g3n with `converter.Convert(nodes, parent, baseDir)`
 - Set up a g3n render loop with camera and lights
 - Use `GetFramebufferSize()` for Retina/HiDPI displays

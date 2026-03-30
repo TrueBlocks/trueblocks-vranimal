@@ -318,7 +318,7 @@ func buildFileMenu(vs *viewerState) *gui.Menu {
 // Sends the path to vs.pendingLoad so the main thread does the actual load.
 func openFileDialog(vs *viewerState) {
 	out, err := exec.Command("osascript", "-e",
-		`POSIX path of (choose file of type {"wrl"} with prompt "Open VRML File")`).Output()
+		`POSIX path of (choose file of type {"wrl","wrz","gz"} with prompt "Open VRML File")`).Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Open cancelled or failed: %v\n", err)
 		return
@@ -1329,17 +1329,17 @@ func showHalfEdgeInfo(vs *viewerState) {
 // If the file has 3+ top-level Transforms (bool_demo format), the 3rd+ are
 // dropped (they're pre-computed results) — only A and B are kept.
 func loadScene(vs *viewerState, path string) {
-	f, err := os.Open(filepath.Clean(path))
+	r, closeFn, err := openWRL(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", path, err)
 		return
 	}
 
 	baseDir := filepath.Dir(path)
-	p := parser.NewParser(f)
+	p := parser.NewParser(r)
 	p.SetBaseDir(baseDir)
 	vrmlNodes := p.Parse()
-	if err := f.Close(); err != nil {
+	if err := closeFn(); err != nil {
 		fmt.Fprintf(os.Stderr, "close error: %v\n", err)
 	}
 

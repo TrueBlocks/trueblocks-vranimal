@@ -13,17 +13,30 @@ The `cmd/viewer/main.go` application is the primary example of this pattern:
 ## How It Works
 
 ```text
-.wrl file → parser.Parse() → []node.Node → converter.Convert() → g3n scene → render loop
+.wrl file → parser.NewParser() → p.Parse() → []node.Node → converter.Convert() → g3n scene → render loop
 ```
 
 ### Step 1: Parse the File
 
 ```go
-import "github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
+import (
+    "os"
+    "path/filepath"
 
-nodes, err := parser.Parse("scene.wrl")
+    "github.com/TrueBlocks/trueblocks-vranimal/pkg/parser"
+)
+
+f, err := os.Open("scene.wrl")
 if err != nil {
     log.Fatal(err)
+}
+defer f.Close()
+
+p := parser.NewParser(f)
+p.SetBaseDir(filepath.Dir("scene.wrl"))
+nodes := p.Parse()
+if errs := p.Errors(); len(errs) > 0 {
+    log.Fatal(errs)
 }
 ```
 
@@ -32,10 +45,16 @@ The parser reads the VRML97 text format and returns a slice of root-level nodes.
 ### Step 2: Convert to g3n
 
 ```go
-import "github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
+import (
+    "github.com/TrueBlocks/trueblocks-vranimal/pkg/converter"
+    "github.com/g3n/engine/core"
+)
 
-g3nScene := converter.Convert(nodes)
+g3nScene := core.NewNode()
+nm := converter.Convert(nodes, g3nScene, baseDir)
 ```
+
+The `Convert` function walks the VRML node tree and creates equivalent g3n objects under `g3nScene`. It returns a `*NodeMap` that maps between VRML and g3n nodes for dynamic updates.
 
 This walks the VRML node tree and creates equivalent g3n objects:
 - `Transform` → `core.Node` with position/rotation/scale
@@ -132,7 +151,7 @@ DEF Ground Shape {
 ## What You Learned
 
 - The full pipeline from `.wrl` file to rendered 3D scene
-- `parser.Parse()` handles the VRML text format
-- `converter.Convert()` maps VRML nodes to g3n scene objects
+- `parser.NewParser()` and `p.Parse()` handle the VRML text format
+- `converter.Convert(nodes, parent, baseDir)` maps VRML nodes to g3n scene objects
 - `converter.GetViewpoint()` / `GetBackground()` extract environment settings
 - Any valid VRML97 file (using supported node types) can be loaded and viewed

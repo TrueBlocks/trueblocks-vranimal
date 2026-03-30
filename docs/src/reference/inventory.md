@@ -2,30 +2,30 @@
 
 Status of each VRML97 node in the Go port.
 
-**Legend**: Done = fully working, Partial = parsed but not all features, Stub = type exists but no runtime behavior, Not Started = no code yet.
+**Legend**: Done = fully working, Partial = parsed but not all features, Deferred = intentionally deferred to a later phase.
 
 | Node | Parser | Converter | Runtime Events | Notes |
 |------|--------|-----------|----------------|-------|
 | **Appearance Nodes** | | | | |
 | Appearance | Done | Done | N/A | |
-| FontStyle | Done | Not Started | N/A | [#20](https://github.com/TrueBlocks/trueblocks-3d/issues/20) |
-| ImageTexture | Done | Not Started | N/A | [#17](https://github.com/TrueBlocks/trueblocks-3d/issues/17) |
+| FontStyle | Done | Done | N/A | Size, family, justify, style |
+| ImageTexture | Done | Done | N/A | |
 | Material | Done | Done | N/A | |
-| MovieTexture | Done | Not Started | N/A | |
-| PixelTexture | Done | Not Started | N/A | |
-| TextureTransform | Done | Not Started | N/A | |
+| MovieTexture | Done | Done | N/A | |
+| PixelTexture | Done | Done | N/A | |
+| TextureTransform | Done | Done | N/A | |
 | **Bindable Nodes** | | | | |
-| Background | Done | Partial | N/A | Sky color only |
-| Fog | Done | Not Started | N/A | [#19](https://github.com/TrueBlocks/trueblocks-3d/issues/19) |
-| NavigationInfo | Done | Not Started | N/A | [#21](https://github.com/TrueBlocks/trueblocks-3d/issues/21) |
-| Viewpoint | Done | Done | N/A | |
+| Background | Done | Done | Done | Binding stack managed by Browser |
+| Fog | Done | Done | Done | Params exposed via GetFogParams() |
+| NavigationInfo | Done | Done | Done | Binding stack managed by Browser |
+| Viewpoint | Done | Done | Done | Binding stack managed by Browser |
 | **Common Nodes** | | | | |
-| AudioClip | Done | Not Started | Not Started | [#18](https://github.com/TrueBlocks/trueblocks-3d/issues/18) |
+| AudioClip | Done | Done | Done | WAV/OGG via g3n OpenAL |
 | DirectionalLight | Done | Done | N/A | |
 | PointLight | Done | Done | N/A | |
-| Script | Stub | Not Started | Not Started | [#27](https://github.com/TrueBlocks/trueblocks-3d/issues/27) |
+| Script | Done | N/A | Done | Go callback handlers |
 | Shape | Done | Done | N/A | |
-| Sound | Done | Not Started | Not Started | [#18](https://github.com/TrueBlocks/trueblocks-3d/issues/18) |
+| Sound | Done | Done | Done | Spatial audio via g3n OpenAL |
 | SpotLight | Done | Done | N/A | |
 | WorldInfo | Done | N/A | N/A | |
 | **Geometry Nodes** | | | | |
@@ -37,33 +37,33 @@ Status of each VRML97 node in the Go port.
 | ElevationGrid | Done | Done | N/A | |
 | Extrusion | Done | Done | N/A | |
 | IndexedFaceSet | Done | Done | N/A | |
-| IndexedLineSet | Done | Not Started | N/A | |
+| IndexedLineSet | Done | Done | N/A | |
 | Normal | Done | Done | N/A | |
-| PointSet | Done | Not Started | N/A | |
+| PointSet | Done | Done | N/A | |
 | Sphere | Done | Done | N/A | |
-| Text | Done | Not Started | N/A | [#20](https://github.com/TrueBlocks/trueblocks-3d/issues/20) |
-| TextureCoordinate | Done | Not Started | N/A | |
+| Text | Done | Done | N/A | TrueType font rendering to texture |
+| TextureCoordinate | Done | Done | N/A | |
 | **Grouping Nodes** | | | | |
-| Anchor | Done | Partial | Not Started | [#29](https://github.com/TrueBlocks/trueblocks-3d/issues/29) |
-| Billboard | Done | Not Started | Not Started | [#29](https://github.com/TrueBlocks/trueblocks-3d/issues/29) |
-| Collision | Done | Not Started | Not Started | [#21](https://github.com/TrueBlocks/trueblocks-3d/issues/21) |
+| Anchor | Done | Done | Done | |
+| Billboard | Done | Done | Done | Dynamic rotation in converter |
+| Collision | Done | Done | Done | |
 | Group | Done | Done | N/A | |
-| Inline | Done | Not Started | N/A | [#26](https://github.com/TrueBlocks/trueblocks-3d/issues/26) |
-| LOD | Done | Partial | Not Started | [#28](https://github.com/TrueBlocks/trueblocks-3d/issues/28) |
-| Switch | Done | Done | Not Started | [#28](https://github.com/TrueBlocks/trueblocks-3d/issues/28) |
+| Inline | Done | Done | N/A | URL-based .wrl loading |
+| LOD | Done | Done | Done | Distance-based child selection |
+| Switch | Done | Done | Done | whichChoice-based selection |
 | Transform | Done | Done | N/A | |
 | **Interpolator Nodes** | | | | |
-| ColorInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| CoordinateInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| NormalInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| OrientationInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| PositionInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| ScalarInterpolator | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
+| ColorInterpolator | Done | N/A | Done | |
+| CoordinateInterpolator | Done | N/A | Done | |
+| NormalInterpolator | Done | N/A | Done | |
+| OrientationInterpolator | Done | N/A | Done | |
+| PositionInterpolator | Done | N/A | Done | |
+| ScalarInterpolator | Done | N/A | Done | |
 | **Sensor Nodes** | | | | |
-| CylinderSensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
-| PlaneSensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
-| ProximitySensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
-| SphereSensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
-| TimeSensor | Done | N/A | Not Started | [#16](https://github.com/TrueBlocks/trueblocks-3d/issues/16) |
-| TouchSensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
-| VisibilitySensor | Done | N/A | Not Started | [#15](https://github.com/TrueBlocks/trueblocks-3d/issues/15) |
+| CylinderSensor | Done | N/A | Done | |
+| PlaneSensor | Done | N/A | Done | |
+| ProximitySensor | Done | N/A | Done | |
+| SphereSensor | Done | N/A | Done | |
+| TimeSensor | Done | N/A | Done | |
+| TouchSensor | Done | N/A | Done | |
+| VisibilitySensor | Done | N/A | Done | |

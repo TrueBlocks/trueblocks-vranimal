@@ -88,7 +88,11 @@ func convertNode(n node.Node, parent *core.Node, baseDir string, nm *NodeMap) {
 	case *node.Viewpoint:
 		// handled by viewer main
 	case *node.Background:
-		// handled by viewer main
+		convertBackground(v, parent, baseDir)
+	case *node.Fog:
+		// fog params extracted via GetFogParams()
+	case *node.Sound:
+		convertSound(v, parent, baseDir)
 	default:
 		// skip unsupported nodes
 	}
@@ -231,13 +235,16 @@ func convertShape(s *node.Shape, parent *core.Node, baseDir string, nm *NodeMap)
 		return
 	}
 
-	// Lines and points use separate graphic types
+	// Lines, points, and text use separate graphic types
 	switch gn := s.Geometry.(type) {
 	case *node.IndexedLineSet:
 		convertIndexedLineSet(gn, s.Appearance, parent)
 		return
 	case *node.PointSet:
 		convertPointSet(gn, s.Appearance, parent)
+		return
+	case *node.Text:
+		convertText(gn, s.Appearance, parent, baseDir)
 		return
 	}
 

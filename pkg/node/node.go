@@ -433,13 +433,22 @@ type WorldInfo struct {
 	Title string
 }
 
-// Script contains application logic.
+// ScriptHandler is a callback function invoked when a Script node receives
+// an event. The field name and value are passed in; the handler returns a
+// map of output field names to values (which will be propagated via ROUTEs).
+type ScriptHandler func(field string, value any) map[string]any
+
+// Script contains application logic. VRML97 Script nodes originally embedded
+// JavaScript; this Go implementation uses registered Go callbacks instead.
+// Register a handler via SetHandler, then connect events with ROUTEs.
 type Script struct {
 	BaseNode
 	URL          []string
 	OrigURL      []string
 	DirectOutput bool
 	MustEvaluate bool
+	Handler      ScriptHandler
+	Fields       map[string]any
 }
 
 // Sound defines spatial sound.

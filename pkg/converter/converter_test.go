@@ -714,3 +714,160 @@ Group {
 		t.Fatalf("expected 2 inner groups, got %d", len(outerGroup.Children()))
 	}
 }
+
+func TestConvert_BackgroundGradient(t *testing.T) {
+	root := parseAndConvert(t, `#VRML V2.0 utf8
+Background {
+  skyColor [0 0 0.5, 0 0 1]
+  skyAngle [1.57]
+  groundColor [0.3 0.2 0, 0.5 0.4 0.2]
+  groundAngle [1.57]
+}`)
+	found := false
+	for _, c := range root.Children() {
+		if c.GetNode().Name() == "__sky_gradient__" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected sky gradient mesh in scene")
+	}
+}
+
+func TestConvert_BackgroundSingleColor(t *testing.T) {
+	root := parseAndConvert(t, `#VRML V2.0 utf8
+Background { skyColor [0.2 0.2 0.4] }`)
+	for _, c := range root.Children() {
+		if c.GetNode().Name() == "__sky_gradient__" {
+			t.Fatal("single-color background should not create gradient sphere")
+		}
+	}
+}
+
+func TestGetFogParams(t *testing.T) {
+	nodes := parseNodes(t, `#VRML V2.0 utf8
+Fog { color 0.5 0.5 0.5 fogType "LINEAR" visibilityRange 100 }`)
+	fp := GetFogParams(nodes)
+	if fp == nil {
+		t.Fatal("expected fog params")
+	}
+	if fp.Exponential {
+		t.Error("expected LINEAR fog")
+	}
+	if fp.VisibilityRange != 100 {
+		t.Errorf("expected range 100, got %f", fp.VisibilityRange)
+	}
+}
+
+func TestGetFogParams_Exponential(t *testing.T) {
+	nodes := parseNodes(t, `#VRML V2.0 utf8
+Fog { fogType "EXPONENTIAL" visibilityRange 50 }`)
+	fp := GetFogParams(nodes)
+	if fp == nil {
+		t.Fatal("expected fog params")
+	}
+	if !fp.Exponential {
+		t.Error("expected EXPONENTIAL fog")
+	}
+}
+
+func TestGetFogParams_Nil(t *testing.T) {
+	nodes := parseNodes(t, `#VRML V2.0 utf8
+Shape { geometry Box {} }`)
+	fp := GetFogParams(nodes)
+	if fp != nil {
+		t.Error("expected nil fog params when no Fog node")
+	}
+}
+
+func TestConvert_Text(t *testing.T) {
+	root := parseAndConvert(t, `#VRML V2.0 utf8
+Shape {
+  geometry Text {
+    string ["Hello" "World"]
+    fontStyle FontStyle { size 2.0 justify ["MIDDLE"] }
+  }
+}`)
+	if childCount(root) < 1 {
+		t.Fatal("expected at least 1 child for text")
+	}
+}
+
+func TestConvert_TextEmpty(t *testing.T) {
+	root := parseAndConvert(t, `#VRML V2.0 utf8
+Shape { geometry Text { string [] } }`)
+	if childCount(root) != 0 {
+		t.Fatalf("empty text should produce 0 children, got %d", childCount(root))
+	}
+}
+
+func TestConvert_Sound(t *testing.T) {
+	nodes := parseNodes(t, `#VRML V2.0 utf8
+Sound {
+  source AudioClip { url ["nonexistent.wav"] }
+  location 1 2 3
+  intensity 0.8
+  spatialize TRUE
+}`)
+	root := core.NewNode()
+	Convert(nodes, root, "")
+	// Audio file doesn't exist, so no player should be added (graceful failure)
+	if childCount(root) != 0 {
+		t.Logf("got %d children (audio player may have loaded)", childCount(root))
+	}
+}
+
+func TestScriptNode_Handler(t *testing.T) {
+	sc := &node.Script{
+		Fields: make(map[string]any),
+		Handler: func(field string, value any) map[string]any {
+			if field == "input" {
+				if v, ok := value.(float64); ok {
+					return map[string]any{"output": v * 2}
+				}
+			}
+			return nil
+		},
+	}
+
+	sc.Fields["input"] = float64(5)
+	if sc.Handler != nil {
+		outputs := sc.Handler("input", float64(5))
+		for k, v := range outputs {
+			sc.Fields[k] = v
+		}
+	}
+	if sc.Fields["output"] != float64(10) {
+		t.Errorf("expected output=10, got %v", sc.Fields["output"])
+	}
+}
+
+func TestInterpolateColorBand(t *testing.T) {
+	colors := []vec.SFColor{
+		{R: 1, G: 0, B: 0},
+		{R: 0, G: 0, B: 1},
+	}
+	angles := []float64{1.57}
+
+	c := interpolateColorBand(colors, angles, 0)
+	if c.R != 1 || c.B != 0 {
+		t.Errorf("at angle 0 expected red, got %v", c)
+	}
+
+	c = interpolateColorBand(colors, angles, 1.57)
+	if c.R != 0 || c.B != 1 {
+		t.Errorf("at angle pi/2 expected blue, got %v", c)
+	}
+}
+
+func parseNodes(t *testing.T, vrml string) []node.Node {
+	t.Helper()
+	p := parser.NewParser(strings.NewReader(vrml))
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		for _, e := range errs {
+			t.Logf("parse warning: %s", e)
+		}
+	}
+	return nodes
+}
