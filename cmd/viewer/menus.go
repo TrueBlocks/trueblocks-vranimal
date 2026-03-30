@@ -177,9 +177,9 @@ type viewerState struct {
 	resultSpan   float64       // offset for result positioning
 
 	// Pick highlighting via TouchSensor + Route
-	pickTargets      []pickTarget
-	pickRoutes       []*node.Route
-	pickedSensor     *node.TouchSensor // active sensor during mouse-down
+	pickTargets  []pickTarget
+	pickRoutes   []*node.Route
+	pickedSensor *node.TouchSensor // active sensor during mouse-down
 
 	// Wireframe: saved original materials keyed by mesh pointer
 	savedMaterials map[*graphic.Mesh][]material.IMaterial
@@ -711,17 +711,6 @@ func selectBoolCase(vs *viewerState, bc *boolCase) {
 
 	// Set up TouchSensors and Routes for pick-highlighting
 	setupPickSensors(vs)
-
-	if meshA != nil {
-		vs.meshANode = core.NewNode()
-		vs.meshANode.Add(meshA)
-		vs.scene.Add(vs.meshANode)
-	}
-	if meshB != nil {
-		vs.meshBNode = core.NewNode()
-		vs.meshBNode.Add(meshB)
-		vs.scene.Add(vs.meshBNode)
-	}
 
 	statsA := solidStatsStr(vs.solidA)
 	statsB := solidStatsStr(vs.solidB)
