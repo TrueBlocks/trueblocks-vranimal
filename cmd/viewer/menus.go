@@ -512,19 +512,30 @@ func setupPickSensors(vs *viewerState) {
 	vs.vrmlMatA = &node.Material{DiffuseColor: yellow}
 	vs.vrmlMatB = &node.Material{DiffuseColor: lightBlue}
 
-	// Tag g3n parent nodes with VRML children so the Picker can find the sensors.
-	if vs.meshANode != nil {
-		vs.meshANode.SetUserData([]node.Node{vs.touchSensorA})
-	}
-	if vs.meshBNode != nil {
-		vs.meshBNode.SetUserData([]node.Node{vs.touchSensorB})
-	}
+	// Tag the actual g3n meshes (not the parent nodes) with VRML children
+	// so the Picker's findSensorGroup finds the sensors on the hit object.
+	tagMeshChildren(vs.meshANode, vs.touchSensorA)
+	tagMeshChildren(vs.meshBNode, vs.touchSensorB)
 
 	// Routes: TouchSensor.isActive → Material.isActive (highlight/restore).
 	rA := node.NewRoute(vs.touchSensorA, node.IsActiveStr, vs.vrmlMatA, node.IsActiveStr)
 	rB := node.NewRoute(vs.touchSensorB, node.IsActiveStr, vs.vrmlMatB, node.IsActiveStr)
 	vs.pickRoutes = []*node.Route{rA, rB}
 	vs.browser.Routes = append(vs.browser.Routes, rA, rB)
+}
+
+// tagMeshChildren sets UserData on each graphic.Mesh child of parent so the
+// Picker's raycaster hit object has the sensor directly attached.
+func tagMeshChildren(parent *core.Node, sensor *node.TouchSensor) {
+	if parent == nil {
+		return
+	}
+	data := []node.Node{sensor}
+	for _, child := range parent.Children() {
+		if _, ok := child.(*graphic.Mesh); ok {
+			child.GetNode().SetUserData(data)
+		}
+	}
 }
 
 // clearPickSensors removes pick-related routes and sensors from the viewer.
